@@ -1,6 +1,6 @@
 <template>
     <i-nav ref="navRef"></i-nav>
-    <div class="container">
+    <div class="container width">
       <router-view key="$route.fullPath" v-slot="{ Component }">
         <transition name="slide-fade" mode="out-in">
           <div class="router-view-wrapper">

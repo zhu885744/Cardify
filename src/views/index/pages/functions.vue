@@ -1085,7 +1085,7 @@ const globalConfig = ref({
         id: 1,
         name: 'QQ',
         icon: 'bi bi-tencent-qq',
-        url: 'https://qq.com',
+        url: 'https://qm.qq.com/q/56SYi6MAta',
         tooltip: '联系QQ',
         enabled: true
       },
@@ -1093,10 +1093,10 @@ const globalConfig = ref({
         id: 2,
         name: '微信',
         icon: 'bi bi-wechat',
-        url: '',
+        url: 'https://weixin.qq.com/',
         tooltip: '扫码添加微信',
         enabled: true,
-        image_url: 'https://img1.zhuxu.asia/2026/U5PbclFMPJ.png'
+        image_url: ''
       }
     ]
   },
@@ -1199,7 +1199,7 @@ async function getGlobalConfig() {
           {
             id: 1,
             name: 'QQ',
-            icon: 'bi bi-qq',
+            icon: 'bi bi-tencent-qq',
             url: 'https://qm.qq.com/q/56SYi6MAta',
             tooltip: '加入交流群',
             enabled: true
@@ -1208,10 +1208,10 @@ async function getGlobalConfig() {
             id: 2,
             name: '微信',
             icon: 'bi bi-wechat',
-            url: '',
+            url: 'https://weixin.qq.com/',
             tooltip: '扫码添加微信',
             enabled: true,
-            image_url: 'https://img1.zhuxu.asia/2026/U5PbclFMPJ.png'
+            image_url: ''
           }
         ]
       },

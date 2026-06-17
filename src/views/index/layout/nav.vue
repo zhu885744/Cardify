@@ -82,6 +82,21 @@
             <i :class="darkModeIcon"></i>
           </button>
           
+          <!-- 签到按钮 -->
+          <button 
+            v-if="store.comm.login.finish && store.comm.login.user"
+            class="btn btn-outline-secondary me-2" 
+            type="button" 
+            @click="doSign"
+            :disabled="signLoading || hasSigned"
+            :title="hasSigned ? '今日已签到' : '每日签到'"
+          >
+            <i v-if="!signLoading" :class="hasSigned ? 'bi bi-check-circle' : 'bi bi-calendar-check'" class="me-1"></i>
+            <i v-else class="bi bi-arrow-clockwise animate-spin me-1"></i>
+            {{ hasSigned ? '已签到' : '签到' }}
+            <span v-if="signDays > 0" class="text-muted">({{ signDays }}天)</span>
+          </button>
+          
           <!-- 用户相关功能 -->
           <div class="d-flex align-items-center" v-if="store.comm.login.finish && store.comm.login.user">
             <!-- 已登录用户信息 -->

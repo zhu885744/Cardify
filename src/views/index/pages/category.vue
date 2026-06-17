@@ -197,33 +197,30 @@
           </div>
 
           <!-- 无图模式布局 -->
-          <div v-else class="card-body p-2">
+          <div v-else class="card-body p-4">
+            <!-- 顶部元信息 -->
+            <div class="d-flex align-items-center gap-3 text-sm text-muted mb-3">
+              <span><i class="bi bi-calendar-fill me-1"></i>{{ formatTime(article.publish_time) }}</span>
+              <span><i class="bi bi-person-fill me-1"></i>{{ article?.result?.author?.nickname || '匿名' }}</span>
+              <span><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
+              <span><i class="bi bi-heart-fill me-1"></i>{{ article?.result?.like?.length || 0 }}</span>
+              <span><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
+            </div>
+
             <!-- 文章标题 -->
-            <h3 class="article-title-list h5 fw-bold mb-2">
+            <h3 class="article-title-list h5 fw-bold mb-3">
               {{ article.title }}
             </h3>
 
             <!-- 文章摘要 -->
-            <p class="article-desc-list text-muted mb-3">
+            <p class="article-desc-list text-muted mb-4">
               {{ article.abstract || "暂无摘要" }}
             </p>
 
-            <!-- 元信息 -->
-            <div
-              class="d-flex align-items-center justify-content-between w-100"
-            >
-              <div class="d-flex align-items-center gap-3">
-                <span class="text-sm text-secondary">
-                  <i class="bi bi-folder-fill me-1"></i>
-                  {{ article?.result?.group?.[0]?.name || "未分类" }}
-                </span>
-              </div>
-              <div class="d-flex align-items-center gap-3">
-                <span class="text-sm text-secondary">
-                  <i class="bi bi-calendar-fill me-1"></i>
-                  {{ formatTime(article.publish_time) }}
-                </span>
-              </div>
+            <!-- 底部标签和阅读全文 -->
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="badge bg-secondary text-white">#{{ article?.result?.group?.[0]?.name || "未分类" }}</span>
+              <a href="#" class="text-primary text-sm" @click.stop="goToArticle(article.id)">阅读全文</a>
             </div>
           </div>
         </div>

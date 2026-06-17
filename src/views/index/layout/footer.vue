@@ -48,13 +48,13 @@
           <span class="mx-1">|</span>
           <span>Theme by </span>
           <a 
-            href="https://github.com/zhu885744/xiao-inisv1-vue" 
+            href="https://github.com/zhu885744/Cardify" 
             target="_blank" 
             rel="noopener noreferrer"
             class="text-decoration-none text-reset hover-text-primary transition-opacity"
-            title="xiao主题开源地址"
+            title="Cardify"
           >
-            xiao v{{ themeVersion }}
+            Cardify v{{ themeVersion }}
           </a>
         </div>
       </div>
