@@ -1,40 +1,14 @@
 import { defineStore } from 'pinia'
-import cache from '{src}/utils/cache'
-import axios from '{src}/utils/request'
-
-// 活期轮播
-const current = (state = {}) => {
-
-    const cacheName = 'banner-current'
-
-    if (cache.has(cacheName)) return (state.tree = cache.get(cacheName))
-
-    const time = Math.round(new Date() / 1000)
-
-    axios.get('/api/banner/column', {
-        // 仅获取当前时间段内的轮播图
-        where: [
-            ['start_time','<=', time],
-            ['end_time','>=', time],
-        ],
-    }).then(({ code, data }) => {
-
-        if (code !== 200) return
-
-        state.current = data
-
-        // 缓存数据
-        cache.set(cacheName, data, inis.cache)
-    })
-}
+import { cache } from '@/utils/network'
+import { request as axios } from '@/utils/network'
 
 export const useBannerStore = defineStore('banner', {
     state: () => ({
-        current: {},    // 活期轮播 - 即有效周期内的轮播
+        current: [],
     }),
     getters: {
-        getCurrent(state = {}) {
-            return current(state)
+        getCurrent(state) {
+            return state.current
         },
     },
     actions: {
@@ -47,24 +21,18 @@ export const useBannerStore = defineStore('banner', {
                 return { code: 200, msg: 'cache', data: this.current }
             }
 
-            const time = Math.round(new Date() / 1000)
-
-            const { code, msg, data } = await axios.get('/api/banner/column', {
-                // 仅获取当前时间段内的轮播图
-                where: [
-                    ['start_time','<=', time],
-                    ['end_time','>=', time],
-                ],
+            const { code, msg, data } = await axios.get('/api/banner/all', {
+                limit: 5,
+                order: 'create_time desc',
             })
 
-            if (code !== 200) return
+            if (code !== 200) return { code, msg, data: [] }
 
-            this.current = data
+            this.current = data.data || []
 
-            // 缓存数据
-            cache.set(cacheName, data, inis.cache)
+            cache.set(cacheName, this.current, globalThis?.inis?.cache || 3600)
 
-            return { code, msg, data }
+            return { code, msg, data: this.current }
         },
     }
 })

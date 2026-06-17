@@ -1,0 +1,1120 @@
+<template>
+  <!-- 顶部导航栏 -->
+  <nav class="navbar navbar-expand-lg bg-body-tertiary bg-opacity-95 shadow-sm">
+    <div class="container d-flex justify-content-between">
+      <!-- 移动端侧边栏触发按钮 -->
+      <button 
+        class="navbar-toggler d-lg-none me-3 border-0" 
+        type="button" 
+        @click="toggleSidebar"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <!-- 网站标题：跳首页 -->
+      <router-link class="navbar-brand flex-grow-1 text-center d-lg-block d-flex justify-content-start align-items-center" to="/">
+        <img 
+          v-if="store.comm.siteInfo?.avatar" 
+          :src="store.comm.siteInfo.avatar" 
+          alt="网站LOGO" 
+          style="width: 45px;border-radius: 50%;"
+        >
+        <span v-else class="fw-bold">{{ store.comm.siteInfo?.title || '未设置网站名' }}</span>
+      </router-link>
+
+      <!-- 移动端右侧搜索按钮 -->
+      <div class="d-flex align-items-center ms-3">
+        <button class="btn d-lg-none border-0 bg-transparent" type="button" @click="router.push('/search')">
+          <i class="bi bi-search"></i>
+        </button>
+      </div>
+
+      <!-- PC端导航内容 -->
+      <div class="collapse navbar-collapse d-none d-lg-flex" id="navbarSupportedContent">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <!-- 首页 -->
+          <li class="nav-item">
+            <router-link class="nav-link" aria-current="page" to="/" active-class="active" exact-active-class="active">
+              首页
+            </router-link>
+          </li>
+
+          <!-- 分类下拉列表 -->
+          <li class="nav-item dropdown" ref="pcDropdownRef">
+            <a class="nav-link dropdown-toggle" role="button" aria-expanded="false" data-bs-toggle="dropdown" data-bs-display="static">
+              分类
+            </a>
+            <ul class="dropdown-menu dropdown-menu-start">
+              <li v-for="category in categories" :key="category.id">
+                <router-link class="dropdown-item" :to="`/category/${category.key}`">
+                  {{ category.name }}
+                </router-link>
+              </li>
+              <li v-if="categories.length === 0" class="dropdown-item text-muted">
+                暂无分类数据
+              </li>
+            </ul>
+          </li>
+
+          <!-- 动态渲染的导航项 -->
+          <li v-for="item in navItems" :key="item.key" class="nav-item">
+            <router-link class="nav-link" :to="`/${item.key}`" active-class="active" exact-active-class="active">
+              {{ item.title }}
+            </router-link>
+          </li>
+        </ul>
+        
+        <!-- 右侧功能区域 -->
+        <div class="d-flex align-items-center">
+          <!-- 搜索按钮 -->
+          <button class="btn btn-outline-secondary me-2" type="button" @click="router.push('/search')">
+            <i class="bi bi-search"></i>
+          </button>
+          
+          <!-- 深色/浅色模式切换按钮 -->
+          <button 
+            class="btn btn-outline-secondary me-2" 
+            type="button" 
+            @click="toggleDarkMode"
+            :title="isDarkMode ? '切换到浅色模式' : '切换到深色模式'"
+          >
+            <i :class="darkModeIcon"></i>
+          </button>
+          
+          <!-- 用户相关功能 -->
+          <div class="d-flex align-items-center" v-if="store.comm.login.finish && store.comm.login.user">
+            <!-- 已登录用户信息 -->
+            <div class="dropdown" ref="userDropdownRef">
+              <button 
+                class="btn btn-outline-secondary dropdown-toggle d-flex align-items-center" 
+                type="button" 
+                id="userDropdownMenu"
+                data-bs-toggle="dropdown" 
+                data-bs-display="static"
+                aria-expanded="false"
+              >
+                <i class="bi bi-person-circle me-1"></i>
+                <span class="text-truncate" style="max-width: 100px;">
+                  {{ store.comm.login.user.nickname || store.comm.login.user.account }}
+                </span>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-start" aria-labelledby="userDropdownMenu">
+                <li>
+                  <router-link class="dropdown-item" :to="`/author/${store.comm.login.user.id}`">
+                    <i class="bi bi-person me-1"></i>用户主页
+                  </router-link>
+                </li>
+                <li>
+                  <router-link class="dropdown-item" to="/user">
+                    <i class="bi bi-gear me-1"></i>用户设置
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
+                  <router-link class="dropdown-item" to="/functions">
+                    <i class="bi bi-palette me-1"></i>站点配置
+                  </router-link>
+                </li>
+                <li>
+                  <button class="dropdown-item" @click="clearCache()">
+                    <i class="bi bi-trash3 me-1"></i>清除缓存
+                  </button>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <button class="dropdown-item text-danger" @click="method.logout()">
+                    <i class="bi bi-box-arrow-right me-1"></i>退出登录
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="d-flex" v-else>
+            <!-- 未登录状态 -->
+            <button class="btn btn-outline-secondary me-2" @click="method.showLogin()">
+              登录
+            </button>
+            <button 
+              v-if="parseInt(store.config.getAllowRegister?.value) === 1" 
+              class="btn btn-outline-secondary"
+              @click="method.showRegister()"
+            >
+              注册
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 移动端侧边栏 -->
+  <div 
+    class="offcanvas offcanvas-start" 
+    tabindex="-1" 
+    id="mobileSidebar"
+    aria-labelledby="mobileSidebarLabel"
+  >
+    <div class="offcanvas-header border-bottom">
+      <h5 class="offcanvas-title d-flex align-items-center" id="mobileSidebarLabel">
+        <img 
+          v-if="store.comm.siteInfo?.avatar" 
+          :src="store.comm.siteInfo.avatar" 
+          alt="网站图标" 
+          class="nav-logo"
+        >
+        <span v-else class="fw-bold">{{ store.comm.siteInfo?.title || '朱某的生活印记' }}</span>
+      </h5>
+      <button 
+        type="button" 
+        class="btn-close" 
+        data-bs-dismiss="offcanvas" 
+        aria-label="Close"
+        @click="closeSidebar"
+      ></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column">
+      <!-- 移动端导航菜单 -->
+      <ul class="navbar-nav flex-grow-1">
+        <!-- 首页 -->
+        <li class="nav-item mb-2">
+          <router-link 
+            class="nav-link" 
+            to="/" 
+            active-class="active" 
+            exact-active-class="active"
+            @click="closeSidebar"
+          >
+            首页
+          </router-link>
+        </li>
+
+        <!-- 分类菜单 -->
+        <li class="nav-item mb-2">
+          <a 
+            class="nav-link d-flex justify-content-between align-items-center" 
+            href="javascript:;" 
+            @click="toggleCategoryDropdown"
+          >
+            分类
+            <i :class="categoryDropdownOpen ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+          </a>
+          <!-- 分类子菜单 -->
+          <ul class="navbar-nav ms-3 mt-2" v-show="categoryDropdownOpen">
+            <li v-for="category in categories" :key="category.id" class="nav-item mb-1">
+              <router-link 
+                class="nav-link" 
+                :to="`/category/${category.key}`"
+                @click="closeSidebar"
+              >
+                {{ category.name }}
+              </router-link>
+            </li>
+            <li v-if="categories.length === 0" class="nav-item text-muted small">
+              暂无分类数据
+            </li>
+          </ul>
+        </li>
+
+        <!-- 动态导航项 -->
+        <li v-for="item in navItems" :key="item.key" class="nav-item mb-2">
+          <router-link 
+            class="nav-link" 
+            :to="`/${item.key}`" 
+            active-class="active" 
+            exact-active-class="active"
+            @click="closeSidebar"
+          >
+            {{ item.title }}
+          </router-link>
+        </li>
+      </ul>
+
+      <!-- 移动端功能按钮组 -->
+      <div class="mt-auto pt-3 border-top">
+        <!-- 未登录状态 -->
+        <div v-if="utils.is.empty(store.comm.login.user)" class="mb-4">
+          <div class="d-grid grid-cols-2 gap-3">
+            <button class="btn btn-outline-secondary text-center" type="button" @click="method.showLogin()">
+              <i class="bi bi-person-circle me-1"></i>登录
+            </button>
+            <button 
+              v-if="parseInt(store.config.getAllowRegister?.value) === 1" 
+              class="btn btn-outline-secondary text-center" 
+              type="button" 
+              @click="method.showRegister()"
+            >
+              <i class="bi bi-person-plus me-1"></i>注册
+            </button>
+          </div>
+        </div>
+        
+        <!-- 已登录状态 -->
+        <div v-else-if="!utils.is.empty(store.comm.login.user)" class="mb-4">
+          <div class="text-center mb-3">
+            <i class="bi bi-person-circle fs-4 text-secondary"></i>
+            <div class="mt-1">{{ store.comm.login.user.nickname }}</div>
+            <small class="text-muted">{{ store.comm.login.user.email }}</small>
+          </div>
+          <button 
+            class="btn btn-secondary w-100 mb-3" 
+            type="button" 
+            @click="doSign"
+            :disabled="signLoading || hasSigned"
+          >
+            <i v-if="!signLoading" :class="hasSigned ? 'bi bi-check-circle' : 'bi bi-calendar-check'" class="me-1"></i>
+            <i v-else class="bi bi-arrow-clockwise animate-spin me-1"></i>
+            {{ hasSigned ? '今日已签到' : '每日签到' }}
+            <span v-if="signDays > 0" class="ms-1 text-muted">({{ signDays }}天)</span>
+          </button>
+          <div class="d-grid grid-cols-2 gap-3">
+            <router-link class="btn btn-outline-secondary text-center" :to="`/author/${store.comm.login.user.id}`" @click="closeSidebar">
+              <i class="bi bi-person me-1"></i>用户主页
+            </router-link>
+            <router-link class="btn btn-outline-secondary text-center" to="/user" @click="closeSidebar">
+              <i class="bi bi-gear me-1"></i>用户设置
+            </router-link>
+            <router-link v-if="isAdmin" class="btn btn-outline-secondary text-center" to="/functions" @click="closeSidebar">
+              <i class="bi bi-palette me-1"></i>主题设置
+            </router-link>
+            <button class="btn btn-outline-secondary text-center" type="button" @click="clearCache()">
+              <i class="bi bi-trash3 me-1"></i>清除缓存
+            </button>
+            <button class="btn btn-outline-secondary text-center" type="button" @click="method.logout()">
+              <i class="bi bi-box-arrow-right me-1"></i>退出登录
+            </button>
+          </div>
+        </div>
+        
+        <!-- 其他功能按钮 -->
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-outline-secondary flex-grow-1" type="button" @click="router.push('/search')">
+            <i class="bi bi-search me-1"></i>搜索
+          </button>
+          <button 
+            class="btn btn-outline-secondary flex-grow-1" 
+            type="button" 
+            @click="toggleDarkMode"
+          >
+            <i :class="[darkModeIcon, 'me-1']"></i>{{ isDarkMode ? '浅色' : '深色' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 引入认证对话框组件 -->
+  <DialogAuth ref="authDialog" @finish="method.onAuthFinish" />
+</template>
+
+<script setup>
+import { ref, onMounted, computed, nextTick, reactive, watch, onUpdated } from 'vue'
+import { request } from '@/utils/network'
+import utils from '@/utils/utils'
+import { toast } from '@/utils/app'
+import { cache } from '@/utils/network'
+import { useRouter } from 'vue-router'
+import { useCommStore } from '@/store/comm'
+import { useConfigStore } from '@/store/config'
+import { STORAGE_KEYS } from '@/constants'
+
+// 引入对话框组件
+import DialogAuth from '@/comps/index/dialog/auth.vue'
+
+// 初始化router
+const router = useRouter()
+
+// 导航项数据
+const navItems = ref([])
+const categories = ref([])
+const sidebarOpen = ref(false)
+const categoryDropdownOpen = ref(false)
+
+// 签到相关数据
+const hasSigned = ref(false)
+const signDays = ref(0)
+const signLoading = ref(false)
+
+// 组件引用
+const authDialog = ref(null)
+
+// 存储
+const store = {
+  comm: useCommStore(),
+  config: useConfigStore()
+}
+
+// 清除缓存方法
+const clearCache = () => {
+  if (confirm('确定要清除所有缓存吗？此操作不会影响您的登录状态。')) {
+    const userInfo = cache.get('user-info')
+    const uid = localStorage.getItem(STORAGE_KEYS.UID)
+    
+    cache.clear()
+    localStorage.removeItem(STORAGE_KEYS.SEARCH_HISTORY)
+    localStorage.removeItem(STORAGE_KEYS.LAST_COMMENT_TIME)
+    
+    if (userInfo) {
+      cache.set('user-info', userInfo, 7 * 24 * 60)
+    }
+    if (uid) {
+      localStorage.setItem(STORAGE_KEYS.UID, uid)
+    }
+    
+    toast.success('缓存已清除')
+    setTimeout(() => {
+      window.location.reload()
+    }, 1500)
+  }
+}
+
+// 状态管理
+const state = reactive({
+  theme: 'white',
+  drawer: {
+    show: false,
+    menu: true
+  },
+  nav: {
+    name: 'index',
+    color: {
+      active: 'rgb(var(--assist-color))',
+      inactive: 'rgb(var(--vice-font-color))',
+    }
+  },
+})
+
+// 方法定义
+const method = {
+  // 显示对话框
+  showLogin: () => {
+    // 先关闭侧边栏
+    closeSidebar()
+    
+    if (authDialog.value && authDialog.value.show) {
+      authDialog.value.show('login')
+    } else {
+      // 延迟一下，确保对话框引用被正确初始化
+      setTimeout(() => {
+        if (authDialog.value && authDialog.value.show) {
+          authDialog.value.show('login')
+        }
+      }, 100)
+    }
+  },
+  
+  showRegister: () => {
+    // 先关闭侧边栏
+    closeSidebar()
+    
+    if (authDialog.value && authDialog.value.show) {
+      authDialog.value.show('register')
+    } else {
+      // 延迟一下，确保对话框引用被正确初始化
+      setTimeout(() => {
+        if (authDialog.value && authDialog.value.show) {
+          authDialog.value.show('register')
+        }
+      }, 100)
+    }
+  },
+  
+  showResetPassword: () => {
+    // 先关闭侧边栏
+    closeSidebar()
+    
+    if (authDialog.value && authDialog.value.show) {
+      authDialog.value.show('reset')
+    } else {
+      // 延迟一下，确保对话框引用被正确初始化
+      setTimeout(() => {
+        if (authDialog.value && authDialog.value.show) {
+          authDialog.value.show('reset')
+        }
+      }, 100)
+    }
+  },
+  
+  // 事件处理
+  onAuthFinish: (user) => {
+    // 登录或注册成功
+    if (user) {
+      // console.log('登录/注册成功:', user)
+      store.comm.login.finish = true
+      store.comm.login.user = user
+      closeSidebar()
+      // 登录成功提示
+      toast.success('登录成功')
+      // 重新初始化下拉菜单（用户登录后）
+      nextTick(() => {
+        initDropdowns()
+      })
+    } else {
+      // 密码重置成功
+      // console.log('密码重置成功')
+      // 密码重置成功提示
+      toast.success('密码重置成功，请登录')
+      method.showLogin()
+    }
+  },
+  
+  // 登出（核心修改：适配后端 DELETE /api/comm/logout 接口）
+  logout: async () => {
+    try {
+      // 1. 调用后端退出登录接口（DELETE 请求）
+      const response = await request.delete('/api/comm/logout')
+      
+      // 2. 处理接口响应（根据后端返回状态码判断）
+      if (response.code === 200) {
+        // 接口调用成功 - 清理前端状态
+        utils.set.cookie(globalThis?.inis?.token_name || 'INIS_LOGIN_TOKEN', '', -1)
+        store.comm.login.finish = false
+        store.comm.login.user = null
+        
+        // 清理本地缓存的用户信息
+        if (utils.cache?.del) {
+          utils.cache.del('user-info')
+        } else if (localStorage) {
+          localStorage.removeItem('user-info')
+        }
+        
+        // 成功提示
+        toast.success('已退出登录')
+      } else {
+        // 接口返回错误
+        toast.error(response.msg || '退出登录失败')
+      }
+    } catch (error) {
+      // 网络错误/接口调用失败
+      console.error('退出登录接口调用失败:', error)
+      
+      // 兜底清理前端状态（即使接口失败，也清理本地Token）
+      utils.set.cookie(globalThis?.inis?.token_name || 'INIS_LOGIN_TOKEN', '', -1)
+      store.comm.login.finish = false
+      store.comm.login.user = null
+      
+      // 错误提示
+      toast.error('网络异常，已本地退出登录')
+    } finally {
+      // 无论成功失败，都关闭侧边栏
+      closeSidebar()
+      // 可选：登出后跳转到首页
+      router.push('/')
+    }
+  },
+  
+  // 获取当前主题
+  async getTheme() {
+    let theme = document.querySelector('body').getAttribute('inis-theme')
+    if (!utils.is.empty(theme)) {
+      if (theme.indexOf('white') !== -1) state.theme = 'white'
+      else state.theme = 'dark'
+    }
+  },
+  
+  // 路由跳转 - 关闭抽屉
+  push: (params = {}) => {
+    router.push(params)
+    state.drawer.show = false
+  },
+}
+
+// 暴露方法给父组件
+defineExpose({
+  method,
+  store
+})
+
+// 初始化下拉菜单 - 由于使用了 data-bs-toggle 属性，Bootstrap 会自动初始化下拉菜单
+// 此函数保留以备将来需要自定义配置时使用
+const initDropdowns = () => {
+  // 等待 DOM 更新完成
+  nextTick(() => {
+    // 下拉菜单已通过 data-bs-toggle 属性自动初始化
+    // 如需自定义配置，可在此添加
+  })
+}
+
+// 计算属性
+const isDarkMode = computed(() => store.comm.isDarkMode)
+
+const darkModeIcon = computed(() => {
+  return isDarkMode.value ? 'bi bi-brightness-high-fill' : 'bi bi-brightness-high'
+})
+
+// 判断用户是否为管理员
+const isAdmin = computed(() => {
+  const user = store.comm.login.user
+  if (!user || !user.result || !user.result.auth) return false
+  
+  // 检查是否有all权限
+  if (user.result.auth.all) return true
+  
+  // 检查权限组中是否有admin
+  const groups = user.result.auth.group?.list || []
+  return groups.some(group => group.key === 'admin')
+})
+
+// 切换深色/浅色模式
+const toggleDarkMode = () => {
+  store.comm.toggleDarkMode()
+}
+
+// 初始化主题
+const initTheme = () => {
+  // 应用主题
+  const htmlElement = document.documentElement
+  htmlElement.setAttribute('data-bs-theme', isDarkMode.value ? 'dark' : 'light')
+}
+
+// 移除系统主题变化的监听，只支持手动切换
+const setupSystemThemeListener = () => {
+  // 不再监听系统主题变化
+  return () => {}
+}
+
+// 侧边栏实例
+let offcanvasInstance = null
+
+// 初始化侧边栏
+const initOffcanvas = () => {
+  if (window.bootstrap && !offcanvasInstance) {
+    const sidebar = document.getElementById('mobileSidebar')
+    if (sidebar) {
+      offcanvasInstance = new window.bootstrap.Offcanvas(sidebar, {
+        backdrop: true,
+        keyboard: true
+      })
+      
+      // 监听关闭事件
+      sidebar.addEventListener('hidden.bs.offcanvas', () => {
+        sidebarOpen.value = false
+        categoryDropdownOpen.value = false
+      })
+      
+      // 监听显示事件
+      sidebar.addEventListener('shown.bs.offcanvas', () => {
+        sidebarOpen.value = true
+      })
+    }
+  }
+}
+
+// 切换移动端侧边栏
+const toggleSidebar = () => {
+  if (!offcanvasInstance) {
+    initOffcanvas()
+  }
+  
+  if (sidebarOpen.value) {
+    offcanvasInstance.hide()
+  } else {
+    offcanvasInstance.show()
+  }
+}
+
+// 关闭侧边栏
+const closeSidebar = () => {
+  if (offcanvasInstance) {
+    offcanvasInstance.hide()
+  }
+  sidebarOpen.value = false
+  categoryDropdownOpen.value = false
+}
+
+// 切换移动端分类下拉
+const toggleCategoryDropdown = () => {
+  categoryDropdownOpen.value = !categoryDropdownOpen.value
+}
+
+// 从API获取导航数据
+const fetchNavData = async () => {
+  try {
+    // 缓存键
+    const cacheKey = 'nav_items'
+    const cacheExpire = 60 // 缓存60分钟
+    
+    // 尝试从缓存获取导航数据
+    let cachedNavItems = cache.get(cacheKey)
+    
+    // 如果缓存不存在，从API获取
+    if (!cachedNavItems) {
+      const response = await request.get('/api/pages/all', {
+        params: {
+          field: 'key,title',
+          cache: false
+        }
+      })
+      
+      if (response.data && Array.isArray(response.data)) {
+        navItems.value = response.data
+        // 缓存导航数据
+        cache.set(cacheKey, response.data, cacheExpire)
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        navItems.value = response.data.data
+        // 缓存导航数据
+        cache.set(cacheKey, response.data.data, cacheExpire)
+      } else {
+        navItems.value = []
+      }
+    } else {
+      // 使用缓存数据
+      navItems.value = cachedNavItems
+    }
+  } catch (error) {
+    // console.error('获取导航数据失败:', error)
+  }
+}
+
+// 从store获取站点信息
+const fetchSiteInfo = async () => {
+  try {
+    await store.comm.fetchSiteInfo()
+  } catch (error) {
+    // console.error('获取站点信息失败:', error)
+  }
+}
+
+// 从API获取分类数据
+const fetchCategories = async () => {
+  try {
+    // 缓存键
+    const cacheKey = 'categories_list'
+    const cacheExpire = 60 // 缓存60分钟
+    
+    // 尝试从缓存获取分类数据
+    let cachedCategories = cache.get(cacheKey)
+    
+    // 如果缓存不存在，从API获取
+    if (!cachedCategories) {
+      const response = await request.get('/api/article-group/all', {
+        params: {
+          field: 'id,key,name',
+          cache: false
+        }
+      })
+
+      if (response.data && response.data.code === 200 && response.data.data && response.data.data.data) {
+        categories.value = response.data.data.data
+        // 缓存分类数据
+        cache.set(cacheKey, response.data.data.data, cacheExpire)
+      } else if (response.data && Array.isArray(response.data)) {
+        categories.value = response.data
+        // 缓存分类数据
+        cache.set(cacheKey, response.data, cacheExpire)
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        categories.value = response.data.data
+        // 缓存分类数据
+        cache.set(cacheKey, response.data.data, cacheExpire)
+      } else {
+        categories.value = []
+      }
+    } else {
+      // 使用缓存数据
+      categories.value = cachedCategories
+    }
+  } catch (error) {
+    // console.error('获取分类数据失败:', error)
+    categories.value = []
+  }
+}
+
+// 签到相关方法
+const checkSignStatus = async () => {
+  if (!store.comm.login.finish || !store.comm.login.user) return
+  
+  try {
+    const response = await request.get('/api/exp/check-in/status')
+    if (response.code === 200) {
+      hasSigned.value = response.data?.hasSigned || false
+      signDays.value = response.data?.signDays || 0
+    }
+  } catch (error) {
+    // console.error('获取签到状态失败：', error)
+  }
+}
+
+const doSign = async () => {
+  if (!store.comm.login.finish || !store.comm.login.user) {
+    toast.warning('请先登录')
+    return
+  }
+  
+  if (hasSigned.value) {
+    toast.info('今日已签到')
+    return
+  }
+  
+  try {
+    signLoading.value = true
+    const response = await request.post('/api/exp/check-in')
+    
+    if (response.code === 200) {
+      hasSigned.value = true
+      signDays.value += 1
+      toast.success(`签到成功！获得 ${response.data?.exp || 10} 点经验`)
+    } else {
+      toast.error(response.msg || '签到失败')
+    }
+  } catch (error) {
+    // console.error('签到失败：', error)
+    toast.error('网络异常，签到失败')
+  } finally {
+    signLoading.value = false
+  }
+}
+
+// 组件挂载时获取数据并初始化
+onMounted(() => {
+  fetchNavData()
+  fetchCategories()
+  fetchSiteInfo()
+  initTheme()
+  setupSystemThemeListener()
+  checkSignStatus()
+  
+  // 初始化 Bootstrap 组件
+  if (window.bootstrap) {
+    initDropdowns()
+    initOffcanvas()
+  } else {
+    // 如果Bootstrap未加载，等待一下再尝试
+    setTimeout(() => {
+      if (window.bootstrap) {
+        initDropdowns()
+        initOffcanvas()
+      }
+    }, 100)
+  }
+  
+  // 监听窗口大小变化，自动关闭侧边栏
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 992) {
+      closeSidebar()
+    }
+  })
+  
+  // 初始化主题获取
+  method.getTheme()
+})
+
+// 当用户状态变化时重新初始化下拉菜单
+watch(() => store.comm.login.user, () => {
+  nextTick(() => {
+    initDropdowns()
+  })
+})
+
+onUpdated(() => {
+  // 组件更新后检查是否需要重新初始化下拉菜单
+  initDropdowns()
+})
+
+nextTick(async () => {
+  await method.getTheme()
+  initDropdowns()
+})
+
+// 监听当前路由 name 改变
+watch(() => router.currentRoute.value.name, (val) => {
+  const map = {
+    'index-themes-list': 'themes',
+    'index-articles-list': 'articles',
+  }
+  state.nav.name = map[val] || val
+}, { immediate: true })
+
+watch(() => state.drawer.show, (val) => {
+  // 显示抽屉时禁止滚动
+  document.querySelector('body').style.overflow = val ? 'hidden' : 'auto'
+})
+
+// 监听 auth 状态变化，自动显示对应的弹窗
+watch(
+  () => store.comm.auth,
+  (newAuth) => {
+    if (newAuth.login) {
+      method.showLogin()
+    } else if (newAuth.register) {
+      method.showRegister()
+    } else if (newAuth.reset) {
+      method.showResetPassword()
+    }
+  },
+  { deep: true }
+)
+</script>
+
+<style scoped>
+/* 基础样式 */
+:deep(.nav-link.active) {
+  color: var(--bs-secondary) !important;
+  font-weight: 500;
+  position: relative;
+  border: 1px solid var(--bs-secondary) !important;
+  border-radius: 0.375rem !important;
+  background-color: rgba(var(--bs-secondary-rgb), 0.05) !important;
+}
+
+/* 移除PC端的下划线效果 */
+@media (min-width: 992px) {
+  :deep(.nav-link.active) {
+    border: none !important;
+    background-color: transparent !important;
+  }
+  
+  :deep(.nav-link.active::after) {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 2px;
+    background-color: var(--bs-secondary);
+    border-radius: 1px;
+  }
+}
+
+/* 移动端的激活状态 */
+@media (max-width: 991.98px) {
+  :deep(.nav-link.active) {
+    padding: 0.5rem 1rem !important;
+    margin: 0.25rem 0 !important;
+  }
+  
+  :deep(.nav-link.active::after) {
+    display: none;
+  }
+}
+
+/* 导航栏图标样式 */
+.nav-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.nav-logo:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 响应式图标大小 */
+@media (max-width: 768px) {
+  .nav-logo {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+@media (max-width: 576px) {
+  .nav-logo {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* 导航项样式优化 */
+:deep(.navbar-nav .nav-item .nav-link) {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.navbar-nav .nav-item .nav-link:hover) {
+  background-color: var(--bs-secondary-bg-subtle);
+  transform: translateY(-1px);
+}
+
+/* 网格布局 */
+:deep(.grid-cols-2) {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+:deep(.d-grid) {
+  display: grid;
+}
+
+/* 适配不同主题 */
+:deep(.dropdown-menu) {
+  background-color: var(--bs-dropdown-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: absolute !important;
+  z-index: 1050;
+  transition: all 0.2s ease;
+}
+
+:deep(.dropdown-item) {
+  transition: all 0.2s ease;
+  border-radius: 0.25rem;
+  margin: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+
+:deep(.dropdown-item:hover) {
+  background-color: var(--bs-dropdown-link-hover-bg);
+  transform: translateX(4px);
+}
+
+:deep(.dropdown-item:active) {
+  transform: translateX(2px);
+}
+
+/* 按钮样式优化 */
+:deep(.btn) {
+  transition: all 0.2s ease;
+  border-radius: 0.375rem;
+}
+
+:deep(.btn:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.btn:active) {
+  transform: translateY(0);
+}
+
+/* 用户相关功能UI优化 */
+:deep(.btn-outline-secondary.dropdown-toggle) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+:deep(.btn-outline-secondary.dropdown-toggle:hover) {
+  border-color: var(--bs-secondary);
+  box-shadow: 0 0 0 3px rgba(var(--bs-secondary-rgb), 0.1);
+}
+
+
+
+/* 搜索容器样式 */
+.search-container {
+  position: relative;
+}
+
+/* 响应式调整 */
+@media (max-width: 991.98px) {
+  :deep(.navbar) {
+    padding: 0.5rem 1rem;
+  }
+  
+  /* 移动端标题居中 */
+  :deep(.navbar-brand) {
+    text-align: center !important;
+    justify-content: center !important;
+  }
+  
+  /* 移动端搜索组件宽度 */
+  .search-container {
+    width: 100%;
+  }
+  
+  /* 移动端按钮间距 */
+  :deep(.btn) {
+    margin: 0.25rem;
+  }
+}
+
+@media (min-width: 992px) {
+  /* PC端标题在左侧 */
+  :deep(.navbar-brand) {
+    text-align: left !important;
+    justify-content: flex-start !important;
+    flex-grow: 0 !important;
+  }
+  
+  /* PC端导航项间距 */
+  :deep(.navbar-nav .nav-item) {
+    margin-right: 0.5rem;
+  }
+}
+
+/* PC端下拉强制展开修复 */
+@media (min-width: 992px) {
+  :deep(.nav-item.dropdown) { position: relative; }
+  :deep(.nav-item.dropdown .dropdown-menu) {
+    z-index: 9999 !important;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.2s ease;
+  }
+  :deep(.nav-item.dropdown:hover .dropdown-menu) {
+    display: block !important;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  :deep(.nav-item.dropdown .dropdown-toggle)[data-bs-toggle="dropdown"] { pointer-events: auto !important; }
+  
+  /* 用户下拉菜单强制显示 */
+  :deep(.dropdown) { position: relative; }
+  :deep(.dropdown .dropdown-menu) {
+    z-index: 10000 !important;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.2s ease;
+  }
+  :deep(.dropdown:hover .dropdown-menu) {
+    display: block !important;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  :deep(.dropdown .dropdown-toggle)[data-bs-toggle="dropdown"] { pointer-events: auto !important; }
+  :deep(.dropdown-menu.show) { 
+    display: block !important;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+}
+
+/* 移动端侧边栏样式 */
+:deep(.offcanvas) {
+  background-color: var(--bs-body-bg);
+  border-right: 1px solid var(--bs-border-color);
+}
+
+:deep(.offcanvas-header) {
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+:deep(.offcanvas-title) {
+  color: var(--bs-body-color);
+}
+
+:deep(.btn-close) {
+  filter: var(--bs-btn-close-color);
+}
+
+/* 适配暗黑模式的特殊样式 */
+@media (prefers-color-scheme: dark) {
+  :deep(.navbar) {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+  
+  .nav-logo {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+  
+  :deep(.dropdown-menu) {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+}
+</style>
