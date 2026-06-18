@@ -485,6 +485,7 @@ import cryptoUtil from '@/utils/crypto'
 import { useCommStore } from '@/store/comm'
 import { useConfigStore } from '@/store/config'
 import { toast } from '@/utils/app'
+import { escapeHtml, detectXSS } from '@/utils/security'
 
 const { proxy } = getCurrentInstance()
 const emit = defineEmits(['finish'])
@@ -626,9 +627,11 @@ const getDefaultPrivacyAgreement = () => {
 
 // 当前协议内容
 const agreementContent = computed(() => {
-    return state.agreement.type === 'user' 
+    const content = state.agreement.type === 'user' 
         ? authAgreementConfig.value.user_agreement_content 
         : authAgreementConfig.value.privacy_agreement_content
+    
+    return escapeHtml(content || '')
 })
 
 // 获取模态框标题
@@ -676,6 +679,12 @@ const validateAccount = (account) => {
         return
     }
     
+    if (detectXSS(account)) {
+        state.errors.account = '输入内容包含非法字符'
+        state.valid.account = false
+        return
+    }
+    
     const accountRegex = state.item.type === 'register' 
         ? /^[a-zA-Z0-9_]{4,20}$/ 
         : /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$|^1[3-9]\d{9}$|^[a-zA-Z0-9_]{4,20}$/
@@ -714,6 +723,12 @@ const validatePassword = (password) => {
 const validateNickname = (nickname) => {
     if (!nickname) {
         state.errors.nickname = '请输入昵称'
+        state.valid.nickname = false
+        return
+    }
+    
+    if (detectXSS(nickname)) {
+        state.errors.nickname = '输入内容包含非法字符'
         state.valid.nickname = false
         return
     }

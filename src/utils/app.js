@@ -4,7 +4,7 @@ import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import utils from '@/utils/utils'
 import router from '@/router/index.js'
-import { request, cache, socketManager, uploadImage } from '@/utils/network'
+import { request, cache, uploadImage } from '@/utils/network'
 
 const DEV = import.meta.env.DEV
 
@@ -72,12 +72,10 @@ const initConfig = () => {
   cachedConfig = {
     title: import.meta.env.VITE_TITLE || '',
     api_uri: import.meta.env.VITE_API_URI || '',
-    socket_uri: import.meta.env.VITE_SOCKET_URI || '',
     router_mode: import.meta.env.VITE_ROUTER_MODE || 'hash',
     base_url: import.meta.env.VITE_BASE_URL || '/',
     api_key: import.meta.env.VITE_API_KEY || '',
     token_name: import.meta.env.VITE_TOKEN_NAME || '',
-    socket_debug: import.meta.env.VITE_SOCKET_DEBUG === 'true',
     lazy_time: parseInt(import.meta.env.VITE_LAZY_TIME) || 500
   }
 }
@@ -456,80 +454,7 @@ const menuConfig = {
 }
 
 const getMenuList = async () => {
-  let authPagesFlat = null
-  let useAuthPagesStore
-  
-  try {
-    const mod = await import('@/store/auth-pages')
-    useAuthPagesStore = mod.useAuthPagesStore
-    authPagesFlat = useAuthPagesStore().getFlat
-  } catch (error) {
-    return []
-  }
-
-  if (utils.is.empty(authPagesFlat)) {
-    await new Promise((resolve) => {
-      let timer = setInterval(() => {
-        authPagesFlat = useAuthPagesStore().getFlat
-        if (!utils.is.empty(authPagesFlat)) {
-          clearInterval(timer)
-          resolve()
-        }
-      }, 100)
-    })
-  }
-
-  let pagesHash = ''
-  
-  try {
-    const { cache } = await import('@/utils/network')
-    pagesHash = cache.get('user-info')?.['result']?.['auth']?.['pages']?.['hash'] || ''
-  } catch (error) {
-    return []
-  }
-
-  let list = [{
-    label: '创作',
-    name: 'create',
-    icon: 'article',
-    items: ['/admin/article', '/admin/article/group', '/admin/article/write', '/admin/pages', '/admin/pages/write'],
-    children: [],
-  }, {
-    label: '管理',
-    name: 'manage',
-    icon: 'manage-color',
-    items: ['/admin/users', '/admin/bill', '/admin/order', '/admin/comment', '/admin/placard', '/admin/banner', '/admin/tags', '/admin/badge', '/admin/level', '/admin/links', '/admin/links/group', '/admin/system/version', '/admin/system'],
-    children: [],
-  }, {
-    label: '安全',
-    name: 'security',
-    icon: 'security',
-    items: ['/admin/auth/rules', '/admin/auth/group', '/admin/api/keys', '/admin/auth/pages', '/admin/ip/black', '/admin/qps/warn'],
-    children: [],
-  }]
-
-  let pages = []
-  if (utils.in.array('all', pagesHash)) {
-    pages = authPagesFlat.map(item => item.path)
-  } else {
-    pagesHash = [...new Set(pagesHash)].filter(item => item)
-    pages = authPagesFlat.filter(item => pagesHash.indexOf(item.hash) !== -1).map(item => item.path)
-  }
-
-  for (let index in list) {
-    let cross = list[index].items.filter(item => pages.indexOf(item) !== -1)
-    let children = cross.map(item => authPagesFlat.find(i => i.path === item))
-    children = children.map(item => {
-      item.label = item.name
-      item.fn = () => push(item.path)
-      return item
-    })
-    list[index].children = children
-  }
-
-  list = list.filter(item => item.children.length)
-
-  return list
+  return []
 }
 
 const menu = {
@@ -914,25 +839,18 @@ const logError = (...args) => {
 
 const init = async (app) => {
   try {
-    const [bootstrapModule, fancyboxModule, socketModule, apiModule] = await Promise.all([
+    const [bootstrapModule, fancyboxModule, apiModule] = await Promise.all([
       import('bootstrap/dist/js/bootstrap.bundle.min.js'),
       import('@fancyapps/ui/dist/fancybox/'),
-      import('@/utils/network').then(m => m.socketManager),
       import('@/api')
     ])
     
     const { default: bootstrap } = bootstrapModule
     const { Fancybox } = fancyboxModule
-    const socket = socketModule
     const { default: API } = apiModule
     
     if (typeof window !== 'undefined' && bootstrap) {
       window.bootstrap = bootstrap
-    }
-    
-    if (socket) {
-      app.provide('socket', socket)
-      app.config.globalProperties.$socket = socket
     }
     
     if (API) {
@@ -950,7 +868,7 @@ const init = async (app) => {
       }, 100)
     }
     
-    return { socket, API, Fancybox }
+    return { API, Fancybox }
   } catch (error) {
     return {}
   }
@@ -991,7 +909,6 @@ const app = {
   MESSAGE_TYPES,
   request,
   cache,
-  socketManager,
   uploadImage
 }
 
@@ -1020,7 +937,6 @@ export {
   validateEmail,
   request,
   cache,
-  socketManager,
   uploadImage
 }
 

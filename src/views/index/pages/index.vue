@@ -57,16 +57,18 @@
           </div>
         </div>
       </div>
-      <!-- 无图模式骨架 -->
-      <div v-else class="card-body p-2">
-        <!-- 标题骨架 -->
-        <div class="skeleton skeleton-title-list mb-2"></div>
-        <!-- 摘要骨架 -->
-        <div class="skeleton skeleton-desc-list mb-3"></div>
-        <!-- 元信息骨架 -->
-        <div class="d-flex justify-content-between">
-          <div class="skeleton skeleton-meta-left"></div>
-          <div class="skeleton skeleton-meta-right"></div>
+      <!-- 列表模式骨架 -->
+      <div v-else class="card-body p-4">
+        <div class="d-flex align-items-start gap-4">
+          <div class="flex-shrink-0 w-10 h-10 bg-secondary-subtle rounded-lg"></div>
+          <div class="flex-grow-1 min-width-0">
+            <div class="skeleton skeleton-title-list mb-2"></div>
+            <div class="skeleton skeleton-desc-list mb-2"></div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <div class="skeleton skeleton-meta-left"></div>
+              <div class="skeleton skeleton-meta-right"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -133,31 +135,27 @@
         </div>
       </div>
       
-      <!-- 无图模式布局 -->
+      <!-- 列表模式布局 -->
       <div v-else class="card-body p-4">
-        <!-- 顶部元信息 -->
-        <div class="d-flex align-items-center gap-3 text-sm text-muted mb-3">
-          <span><i class="bi bi-calendar-fill me-1"></i>{{ formatTime(article.publish_time) }}</span>
-          <span><i class="bi bi-person-fill me-1"></i>{{ article?.result?.author?.nickname || '匿名' }}</span>
-          <span><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
-          <span><i class="bi bi-heart-fill me-1"></i>{{ article?.result?.like?.length || 0 }}</span>
-          <span><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
-        </div>
-
-        <!-- 文章标题 -->
-        <h3 class="article-title-list h5 fw-bold mb-3">
-          {{ article.title }}
-        </h3>
-
-        <!-- 文章摘要 -->
-        <p class="article-desc-list text-muted mb-4">
-          {{ article.abstract || '暂无摘要' }}
-        </p>
-
-        <!-- 底部标签和阅读全文 -->
-        <div class="d-flex align-items-center justify-content-between">
-          <span class="badge bg-secondary text-white">#{{ article?.result?.group?.[0]?.name || '未分类' }}</span>
-          <a href="#" class="text-primary text-sm" @click.stop="toArticleDetail(article.id)">阅读全文</a>
+        <div class="d-flex align-items-start gap-4">
+          <div class="flex-grow-1 min-width-0">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="badge bg-secondary-subtle text-secondary text-xs">{{ article?.result?.group?.[0]?.name || "未分类" }}</span>
+              <span class="text-xs text-muted">{{ formatTime(article.publish_time) }}</span>
+            </div>
+            <h3 class="article-title-list h5 fw-bold mb-2">
+              {{ article.title }}
+            </h3>
+            <p class="article-desc-list text-muted mb-3">
+              {{ article.abstract || "暂无摘要" }}
+            </p>
+            <div class="d-flex align-items-center gap-4 article-meta-info">
+              <span><i class="bi bi-person-fill me-1"></i>{{ article?.result?.author?.nickname || '匿名' }}</span>
+              <span><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
+              <span><i class="bi bi-heart-fill me-1"></i>{{ article?.result?.like?.length || 0 }}</span>
+              <span><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -208,29 +206,25 @@
         </div>
       </div>
       
-      <!-- 无图模式布局 -->
+      <!-- 列表模式布局 -->
       <div v-else class="card-body p-4">
-        <!-- 顶部元信息 -->
-        <div class="d-flex align-items-center gap-3 text-sm text-muted mb-3">
-          <span><i class="bi bi-calendar-fill me-1"></i>{{ formatTime(article.publish_time) }}</span>
-          <span><i class="bi bi-person-fill me-1"></i>{{ article?.result?.author?.nickname || '匿名' }}</span>
-          <span><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
-          <span><i class="bi bi-heart-fill me-1"></i>{{ article?.result?.like?.length || 0 }}</span>
-          <span><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
-        </div>
-
-        <!-- 文章标题 -->
-        <h3 class="article-title-list h5 fw-bold mb-3">{{ article.title }}</h3>
-
-        <!-- 文章摘要 -->
-        <p class="article-desc-list text-muted mb-4">
-          {{ article.abstract || '暂无摘要' }}
-        </p>
-
-        <!-- 底部标签和阅读全文 -->
-        <div class="d-flex align-items-center justify-content-between">
-          <span class="badge bg-secondary text-white">#{{ article?.result?.group?.[0]?.name || '未分类' }}</span>
-          <a href="#" class="text-primary text-sm" @click.stop="toArticleDetail(article.id)">阅读全文</a>
+        <div class="d-flex align-items-start gap-4">
+          <div class="flex-grow-1 min-width-0">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="badge bg-secondary-subtle text-secondary text-xs">{{ article?.result?.group?.[0]?.name || "未分类" }}</span>
+              <span class="text-xs text-muted">{{ formatTime(article.publish_time) }}</span>
+            </div>
+            <h3 class="article-title-list h5 fw-bold mb-2">{{ article.title }}</h3>
+            <p class="article-desc-list text-muted mb-3">
+              {{ article.abstract || "暂无摘要" }}
+            </p>
+            <div class="d-flex align-items-center gap-4 article-meta-info">
+              <span><i class="bi bi-person-fill me-1"></i>{{ article?.result?.author?.nickname || '匿名' }}</span>
+              <span><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
+              <span><i class="bi bi-heart-fill me-1"></i>{{ article?.result?.like?.length || 0 }}</span>
+              <span><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -293,7 +287,7 @@ const limit = ref(10)
 const total = ref(0)
 const order = ref('top desc, create_time desc')
 
-// 显示模式：true为有图模式（网格布局），false为无图模式（列表布局）
+// 显示模式：true为有图模式（网格布局），false为列表模式（列表布局）
 const hasImageMode = ref(true)
 // 轮播图数据
 const banners = ref([])
@@ -972,29 +966,29 @@ img {
   text-overflow: ellipsis;
 }
 
-/* 无图模式标题 */
+/* 列表模式标题 */
 .article-title-list {
-  font-size: clamp(1.25rem, 2.2vw, 1.6rem);
-  line-height: 1.4;
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  line-height: 1.5;
   font-weight: 700;
   color: var(--bs-body-color);
   transition: color 0.3s ease;
-  margin-bottom: 0.75rem !important;
+  margin-bottom: 0.5rem !important;
 }
 
 .article-item-list:hover .article-title-list {
   color: var(--bs-secondary);
 }
 
-/* 无图模式摘要 */
+/* 列表模式摘要 */
 .article-desc-list {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--bs-secondary-color);
   line-height: 1.6;
-  margin: 0.75rem 0 1.25rem 0;
+  margin: 0 0 0.75rem 0;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1046,16 +1040,24 @@ img {
   color: var(--bs-secondary);
 }
 
-/* 无图模式元信 */
-.article-item-list .text-sm.text-secondary {
+/* 列表模式元信息 */
+.article-meta-info {
+  font-size: 0.85rem;
+  color: var(--bs-tertiary-color);
   transition: color 0.3s ease;
 }
 
-.article-item-list:hover .text-sm.text-secondary {
+.article-meta-info .bi {
+  font-size: 0.9em;
+  color: var(--bs-tertiary-color);
+  transition: color 0.3s ease;
+}
+
+.article-item-list:hover .article-meta-info {
   color: var(--bs-secondary);
 }
 
-.article-item-list:hover .text-sm.text-secondary .bi {
+.article-item-list:hover .article-meta-info .bi {
   color: var(--bs-secondary);
 }
 
@@ -1656,7 +1658,7 @@ img {
     color: var(--bs-secondary-color);
   }
   
-  /* 无图模式标题 */
+  /* 列表模式标题 */
   .article-title-list {
     color: var(--bs-heading-color);
   }
@@ -1665,7 +1667,7 @@ img {
     color: var(--bs-secondary);
   }
   
-  /* 无图模式摘要 */
+  /* 列表模式摘要 */
   .article-desc-list {
     color: var(--bs-secondary-color);
   }
@@ -1687,12 +1689,12 @@ img {
     color: var(--bs-secondary);
   }
   
-  /* 无图模式元信息 */
-  .article-item-list:hover .text-sm.text-secondary {
+  /* 列表模式元信息 */
+  .article-item-list:hover .text-xs.text-muted {
     color: var(--bs-secondary);
   }
   
-  .article-item-list:hover .text-sm.text-secondary .bi {
+  .article-item-list:hover .text-xs.text-muted .bi {
     color: var(--bs-secondary);
   }
   

@@ -6,19 +6,16 @@ import CryptoJS from 'crypto-js'
  * 支持：环境变量配置、多种加密算法、错误处理
  */
 
-// 默认配置
+// 默认配置（从环境变量读取，避免硬编码密钥）
 const DEFAULT_CONFIG = {
-  // AES配置
-  AES_KEY: 'default_32byte_aes_key_here1234567890',
-  AES_IV: 'default_16byte_iv', // 长度16位
+  AES_KEY: import.meta.env.VITE_AES_KEY || '',
+  AES_IV: import.meta.env.VITE_AES_IV || '',
   
-  // Token配置
   TOKEN_MIN_LENGTH: 8,
   TOKEN_MAX_LENGTH: 64,
   DEFAULT_TOKEN_LENGTH: 32,
   
-  // 盐值配置（用于增加哈希安全性）
-  SALT: 'default_salt_value'
+  SALT: import.meta.env.VITE_CRYPTO_SALT || ''
 }
 
 /**
@@ -33,7 +30,10 @@ class AESCrypto {
   constructor(key = DEFAULT_CONFIG.AES_KEY, iv = DEFAULT_CONFIG.AES_IV) {
     this.validateCryptoJS()
     
-    // 处理密钥和向量（强制IV为16位）
+    if (!key || !iv) {
+      console.warn('AES密钥或向量未配置，加密功能不可用')
+    }
+    
     this.originalKey = this.normalizeKey(key, DEFAULT_CONFIG.AES_KEY);
     this.originalIv = this.normalizeIv(iv, DEFAULT_CONFIG.AES_IV);
     

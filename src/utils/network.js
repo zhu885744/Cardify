@@ -7,7 +7,12 @@ const MAX_RETRY = 2
 
 const axiosInstance = axios.create({
   timeout: DEFAULT_TIMEOUT,
-  withCredentials: false
+  withCredentials: false,
+  headers: {
+    'X-Requested-With': 'XMLHttpRequest',
+    'Accept': 'application/json',
+    'Content-Type': 'application/json; charset=utf-8'
+  }
 })
 
 class Cache {
@@ -353,6 +358,15 @@ axiosInstance.interceptors.request.use(
           axiosConfig.headers.Authorization = token
         }
       }
+
+      axiosConfig.headers['X-CSRF-Token'] = utils.get.cookie('csrf_token') || ''
+      
+      axiosConfig.headers['X-App-Version'] = '1.0.0'
+      
+      if (!axiosConfig.url || !axiosConfig.url.startsWith('/api/')) {
+        console.warn(`[Security] 请求路径不合法: ${axiosConfig.url}`)
+      }
+
     } catch (error) {
     }
 
@@ -456,285 +470,6 @@ const request = {
   axios: axiosInstance
 }
 
-class SocketManager {
-  constructor() {
-    this.socket = null
-    this.reconnectAttempts = 0
-    this.reconnectTimer = null
-    this.pingTimer = null
-    this.pingTimeoutTimer = null
-    this.isManualClose = false
-    this.isConnecting = false
-    this.listeners = {
-      open: [],
-      close: [],
-      error: [],
-      message: [],
-      reconnect: []
-    }
-    this.config = {
-      uri: 'wss://cs.zhuxu.asia/socket',
-      reconnectInterval: 3000,
-      maxReconnectAttempts: 10,
-      debug: false,
-      pingInterval: 30000,
-      pingTimeout: 10000
-    }
-  }
-
-  async initConfig() {
-    try {
-      const { getSync } = await import('@/utils/app')
-      this.config.uri = getSync('socket_uri') || 'wss://cs.zhuxu.asia/socket'
-      this.config.debug = getSync('socket_debug') === true
-    } catch (error) {
-    }
-  }
-
-  formatUri(uri, params) {
-    if (utils.is.empty(uri)) {
-      return ''
-    }
-
-    let formattedUri = uri.trim()
-
-    const [protocol, rest] = formattedUri.split('://')
-    if (rest) {
-      const [host, ...pathParts] = rest.split('/')
-      formattedUri = `${protocol}://${host}/${pathParts.join('/')}`.replace(/\/+$/, '')
-    }
-
-    if (!utils.is.empty(params)) {
-      let paramStr = ''
-      if (typeof params === 'object' && !Array.isArray(params)) {
-        paramStr = Object.entries(params)
-          .filter(([_, v]) => !utils.is.empty(v))
-          .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-          .join('&')
-      } else if (typeof params === 'string' && params.trim() !== '') {
-        paramStr = params.trim()
-      }
-      if (paramStr) {
-        formattedUri += formattedUri.includes('?') ? `&${paramStr}` : `?${paramStr}`
-      }
-    }
-
-    if (import.meta.env.PROD && formattedUri.startsWith('ws://')) {
-      formattedUri = formattedUri.replace('ws://', 'wss://')
-    }
-
-    return formattedUri
-  }
-
-  debugLog(...args) {
-    if (this.config.debug) {
-      console.log('[Socket]', ...args)
-    }
-  }
-
-  emit(event, ...args) {
-    this.listeners[event]?.forEach(callback => {
-      try {
-        callback(...args)
-      } catch (error) {
-      }
-    })
-  }
-
-  on(event, callback) {
-    if (typeof callback !== 'function') {
-      return
-    }
-    if (!this.listeners[event]) {
-      return
-    }
-    this.listeners[event].push(callback)
-  }
-
-  off(event, callback) {
-    if (!this.listeners[event]) return
-    if (callback) {
-      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback)
-    } else {
-      this.listeners[event] = []
-    }
-  }
-
-  startPing() {
-    this.stopPing()
-    this.pingTimer = setInterval(() => {
-      if (this.socket?.readyState === WebSocket.OPEN) {
-        this.socket.send(JSON.stringify({ type: 'ping' }))
-        
-        this.pingTimeoutTimer = setTimeout(() => {
-          this.socket?.close(1000, 'ping timeout')
-        }, this.config.pingTimeout)
-      }
-    }, this.config.pingInterval)
-  }
-
-  stopPing() {
-    if (this.pingTimer) {
-      clearInterval(this.pingTimer)
-      this.pingTimer = null
-    }
-    if (this.pingTimeoutTimer) {
-      clearTimeout(this.pingTimeoutTimer)
-      this.pingTimeoutTimer = null
-    }
-  }
-
-  bindCoreEvents() {
-    if (!this.socket) return
-
-    this.socket.onopen = (event) => {
-      this.isConnecting = false
-      this.reconnectAttempts = 0
-      this.startPing()
-      this.emit('open', event)
-    }
-
-    this.socket.onclose = (event) => {
-      this.isConnecting = false
-      this.stopPing()
-      this.emit('close', event)
-
-      const canReconnect = !this.isManualClose && 
-        (this.config.maxReconnectAttempts === 0 || this.reconnectAttempts < this.config.maxReconnectAttempts)
-      
-      if (canReconnect) {
-        this.reconnect()
-      }
-    }
-
-    this.socket.onerror = (event) => {
-      this.isConnecting = false
-      this.emit('error', event)
-    }
-
-    this.socket.onmessage = (event) => {
-      if (event.data === 'pong') {
-        if (this.pingTimeoutTimer) {
-          clearTimeout(this.pingTimeoutTimer)
-          this.pingTimeoutTimer = null
-        }
-        return
-      }
-
-      let data = event.data
-      try {
-        data = JSON.parse(event.data)
-      } catch (err) {
-      }
-      this.emit('message', data)
-    }
-  }
-
-  reconnect() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer)
-    }
-
-    this.reconnectAttempts++
-    this.emit('reconnect', this.reconnectAttempts)
-
-    this.reconnectTimer = setTimeout(() => {
-      this.connect()
-    }, this.config.reconnectInterval)
-  }
-
-  connect(uri = null, params = {}, protocols) {
-    if (this.isManualClose) {
-      return null
-    }
-
-    if (this.isConnecting) {
-      return this.socket
-    }
-
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      return this.socket
-    }
-
-    this.initConfig()
-
-    const finalUri = this.formatUri(uri || this.config.uri, params)
-    if (utils.is.empty(finalUri)) return null
-
-    if (this.socket && this.socket.readyState !== WebSocket.CONNECTING) {
-      this.socket.close(1000, 'recreate connection')
-      this.socket = null
-    }
-
-    this.isConnecting = true
-
-    try {
-      this.socket = new WebSocket(finalUri, protocols)
-      this.bindCoreEvents()
-      return this.socket
-    } catch (error) {
-      this.isConnecting = false
-      this.reconnect()
-      return null
-    }
-  }
-
-  close(manual = true, code = 1000, reason = 'manual close') {
-    this.isManualClose = manual
-    this.isConnecting = false
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = null
-    }
-    this.stopPing()
-    
-    if (this.socket) {
-      this.socket.close(code, reason)
-      this.socket = null
-    }
-  }
-
-  send(data = {}, to = '') {
-    try {
-      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-        return false
-      }
-
-      const sendData = utils.is.empty(to) ? data : { ...data, to }
-      const sendStr = typeof sendData === 'string' ? sendData : JSON.stringify(sendData)
-      this.socket.send(sendStr)
-      return true
-    } catch (error) {
-      return false
-    }
-  }
-
-  destroy() {
-    this.close(true, 1000, 'destroy instance')
-    this.reconnectAttempts = 0
-    this.isManualClose = false
-    this.isConnecting = false
-    
-    Object.keys(this.listeners).forEach(key => {
-      this.listeners[key] = []
-    })
-  }
-
-  getInstance() {
-    return this.socket
-  }
-
-  getReconnectAttempts() {
-    return this.reconnectAttempts
-  }
-
-  isConnected() {
-    return !!this.socket && this.socket.readyState === WebSocket.OPEN
-  }
-}
-
-const socketManager = new SocketManager()
-
 const uploadImage = async (callback) => {
   const input = document.createElement('input')
   input.type = 'file'
@@ -771,6 +506,6 @@ const uploadImage = async (callback) => {
   input.click()
 }
 
-export { cache, request, socketManager, uploadImage }
+export { cache, request, uploadImage }
 
-export default { cache, request, socketManager, uploadImage }
+export default { cache, request, uploadImage }

@@ -207,7 +207,7 @@
                             v-model="globalConfig.display_mode"
                           >
                           <label class="form-check-label" for="display_mode_switch">
-                            {{ globalConfig.display_mode ? '有图模式' : '无图模式' }}
+                            {{ globalConfig.display_mode ? '有图模式' : '列表模式' }}
                           </label>
                         </div>
                       </div>
@@ -1060,7 +1060,7 @@ const globalConfig = ref({
   avatar: '',
   favicon: '',
   date: Math.floor(Date.now() / 1000).toString(),
-  display_mode: true, // true 为有图模式，false 为无图模式
+  display_mode: true, // true 为有图模式，false 为列表模式
   copy: {
     code: '',
     link: 'http://beian.miit.gov.cn/'

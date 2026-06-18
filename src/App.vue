@@ -20,13 +20,12 @@ import upgradePage from '@/comps/upgrade/page.vue'
 import iNav from '@/views/index/layout/nav.vue'
 import iFooter from '@/views/index/layout/footer.vue'
 import iFloatButtons from '@/comps/custom/i-float-buttons.vue'
-import { socketManager as socket } from '@/utils/network'
+
 import { useCommStore } from '@/store/comm'
 import { request } from '@/utils/network'
 
 const store = useCommStore()
 const customCodeInjected = ref(false)
-const socketConnected = ref(false)
 
 const injectCustomCode = async () => {
   if (customCodeInjected.value) return
@@ -94,49 +93,12 @@ const injectCustomCode = async () => {
   }
 }
 
-const setupSocket = () => {
-  if (socketConnected.value) return
-  
-  const handleOpen = () => {
-    console.log('WebSocket连接已建立')
-    socketConnected.value = true
-  }
-
-  const handleClose = () => {
-    console.log('WebSocket连接已关闭')
-    socketConnected.value = false
-  }
-
-  const handleError = (error) => {
-    console.error('WebSocket错误:', error)
-    socketConnected.value = false
-  }
-
-  socket.on('open', handleOpen)
-  socket.on('close', handleClose)
-  socket.on('error', handleError)
-
-  try {
-    socket.connect()
-  } catch (error) {
-    console.error('WebSocket连接初始化失败:', error)
-  }
-}
-
 const initAfterMount = async () => {
   await injectCustomCode()
-  
-  if (store.siteInfo?.enable_socket !== false) {
-    setupSocket()
-  }
 }
 
 onMounted(async () => {
   await initAfterMount()
-})
-
-onUnmounted(() => {
-  socket.destroy()
 })
 </script>
 
