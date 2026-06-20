@@ -1,6 +1,6 @@
 <template>
   <!-- 顶部导航栏 -->
-  <nav class="navbar navbar-expand-lg bg-body-tertiary bg-opacity-95 shadow-sm">
+  <nav class="navbar navbar-expand-lg bg-body-tertiary px-md-5 shadow-sm">
     <div class="container d-flex justify-content-between">
       <!-- 移动端侧边栏触发按钮 -->
       <button 
@@ -62,6 +62,20 @@
             <router-link class="nav-link" :to="`/${item.key}`" active-class="active" exact-active-class="active">
               {{ item.title }}
             </router-link>
+          </li>
+
+          <!-- 自定义导航链接下拉菜单 -->
+          <li v-if="customNavLinks.length > 0" class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" role="button" aria-expanded="false" data-bs-toggle="dropdown" data-bs-display="static">
+              推荐
+            </a>
+            <ul class="dropdown-menu dropdown-menu-start">
+              <li v-for="(link, index) in customNavLinks" :key="'custom-' + index">
+                <a class="dropdown-item" :href="link.url" target="_blank" rel="noopener noreferrer">
+                  {{ link.text }}
+                </a>
+              </li>
+            </ul>
           </li>
         </ul>
         
@@ -242,6 +256,19 @@
             {{ item.title }}
           </router-link>
         </li>
+
+        <!-- 自定义导航链接 -->
+        <li v-for="(link, index) in customNavLinks" :key="'custom-mobile-' + index" class="nav-item mb-2">
+          <a 
+            class="nav-link" 
+            :href="link.url" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            @click="closeSidebar"
+          >
+            {{ link.text }}
+          </a>
+        </li>
       </ul>
 
       <!-- 移动端功能按钮组 -->
@@ -343,6 +370,7 @@ const navItems = ref([])
 const categories = ref([])
 const sidebarOpen = ref(false)
 const categoryDropdownOpen = ref(false)
+const customNavLinks = ref([])
 
 // 签到相关数据
 const hasSigned = ref(false)
@@ -684,9 +712,33 @@ const fetchNavData = async () => {
 const fetchSiteInfo = async () => {
   try {
     await store.comm.fetchSiteInfo()
+    // 解析自定义导航链接
+    parseCustomNavLinks()
   } catch (error) {
     // console.error('获取站点信息失败:', error)
   }
+}
+
+// 解析自定义导航链接
+// 格式：每行一个，跳转文字 || 跳转链接
+const parseCustomNavLinks = () => {
+  const linksStr = store.comm.siteInfo?.custom_nav_links || ''
+  if (!linksStr || typeof linksStr !== 'string') {
+    customNavLinks.value = []
+    return
+  }
+  const lines = linksStr.split(/\r?\n/).map(line => line.trim()).filter(line => line)
+  const links = []
+  for (const line of lines) {
+    const parts = line.split('||').map(p => p.trim())
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      links.push({
+        text: parts[0],
+        url: parts[1]
+      })
+    }
+  }
+  customNavLinks.value = links
 }
 
 // 从API获取分类数据

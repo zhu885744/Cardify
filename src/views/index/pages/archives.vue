@@ -67,25 +67,6 @@
 
     <!-- 文章主体 -->
     <div v-else class="article-main">
-      <!-- 面包屑导航 -->
-      <div class="card shadow-sm p-3 mt-2">
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb mb-0 breadcrumb-custom">
-            <li class="breadcrumb-item">
-              <router-link to="/" class="text-decoration-none">首页</router-link>
-            </li>
-            <li v-if="articleInfo.result?.group[0]?.name" class="breadcrumb-item">
-              <router-link :to="`/category/${articleInfo.result.group[0].id}`" class="text-decoration-none">
-                {{ articleInfo.result.group[0].name }}
-              </router-link>
-            </li>
-            <li class="breadcrumb-item active" aria-current="page">
-              {{ articleInfo.title }}
-            </li>
-          </ol>
-        </nav>
-      </div>
-
       <!-- 文章内容区：核心阅读区，重写样式 -->
       <main class="card shadow-sm mt-2">
         <div class="p-3">

@@ -548,6 +548,9 @@ const isCommentEnabled = computed(() => {
 
 // 是否显示评论（综合全局配置和文章配置）
 const isCommentVisible = computed(() => {
+  if (!globalCommentEnabled.value) {
+    return false
+  }
   if (props.articleCommentConfig.show !== null && props.articleCommentConfig.show !== undefined) {
     return props.articleCommentConfig.show === 1
   }

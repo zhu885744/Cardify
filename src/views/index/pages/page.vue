@@ -15,29 +15,6 @@
 
     <!-- 独立页面主体：核心UI重写 -->
     <div v-else class="article-main">
-      <!-- 面包屑导航 -->
-      <div class="card shadow-sm p-3 mt-2">
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb mb-0 breadcrumb-custom">
-            <li class="breadcrumb-item">
-              <router-link to="/" class="text-decoration-none">首页</router-link>
-            </li>
-            <li v-if="isArchivePage" class="breadcrumb-item active" aria-current="page">
-              归档
-            </li>
-            <li v-else-if="isLinksPage" class="breadcrumb-item active" aria-current="page">
-              友链
-            </li>
-            <li v-else-if="isMessagePage" class="breadcrumb-item active" aria-current="page">
-              留言板
-            </li>
-            <li v-else class="breadcrumb-item active" aria-current="page">
-              {{ pageInfo.title }}
-            </li>
-          </ol>
-        </nav>
-      </div>
-      
       <!-- 归档页面统计信息 -->
       <div v-if="isArchivePage">
         <!-- 统计信息卡片区域 -->

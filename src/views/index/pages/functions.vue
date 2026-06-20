@@ -215,6 +215,37 @@
                   </div>
                 </div>
 
+                <!-- 自定义导航栏 -->
+                <div class="border-bottom pb-3 mb-4">
+                  <h2 class="h6 mb-3 fw-semibold d-flex align-items-center gap-2">
+                    <i class="bi bi-bookmark-star-fill text-primary"></i>
+                    自定义导航栏
+                  </h2>
+                  <div class="row g-3">
+                    <div class="col-12">
+                      <label for="custom-nav-links" class="form-label small fw-medium">自定义导航链接</label>
+                      <textarea 
+                        class="form-control form-control-sm" 
+                        id="custom-nav-links"
+                        rows="6"
+                        v-model="globalConfig.custom_nav_links"
+                        placeholder="百度一下 || https://baidu.com&#10;腾讯视频 || https://v.qq.com"
+                        style="font-family: 'Courier New', monospace; resize: vertical;"
+                      ></textarea>
+                      <div class="form-text small mt-1">
+                        <div>用于自定义导航栏链接</div>
+                        <div>格式：跳转文字 || 跳转链接（中间使用两个竖杠分隔）</div>
+                        <div>其他：一行一个，一行代表一个超链接</div>
+                        <div class="mt-1 text-muted">
+                          例如：<br>
+                          百度一下 || <code>https://baidu.com</code><br>
+                          腾讯视频 || <code>https://v.qq.com</code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- 备案信息 -->
                 <div class="border-bottom pb-3 mb-4">
                   <h2 class="h6 mb-3 fw-semibold d-flex align-items-center gap-2">
@@ -579,7 +610,7 @@
                       启用全局评论功能
                     </label>
                   </div>
-                  <div class="form-text small text-muted">关闭后，所有页面的评论模块将无法进行评论</div>
+                  <div class="form-text small text-muted">关闭后，所有文章的评论模块将完全不显示</div>
                 </div>
                 
                 <!-- 速率限制 -->
@@ -1061,6 +1092,7 @@ const globalConfig = ref({
   favicon: '',
   date: Math.floor(Date.now() / 1000).toString(),
   display_mode: true, // true 为有图模式，false 为列表模式
+  custom_nav_links: '', // 自定义导航链接（每行：文字 || 链接）
   copy: {
     code: '',
     link: 'http://beian.miit.gov.cn/'
@@ -1176,6 +1208,7 @@ async function getGlobalConfig() {
       favicon: config.favicon || '',
       date: config.date || Math.floor(Date.now() / 1000).toString(),
       display_mode: config.display_mode !== false, // 默认值为 true
+      custom_nav_links: config.custom_nav_links || '', // 自定义导航链接
       copy: {
         code: config.copy?.code || '',
         link: config.copy?.link || 'http://beian.mps.gov.cn/'
@@ -1407,6 +1440,8 @@ function resetGlobalConfig() {
     avatar: '',
     favicon: '',
     date: Math.floor(Date.now() / 1000).toString(),
+    display_mode: true,
+    custom_nav_links: '',
     copy: {
       code: '',
       link: 'http://beian.miit.gov.cn/'
