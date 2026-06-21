@@ -10,7 +10,7 @@
               <i class="bi bi-gear-wide-connected text-primary"></i>
               站点配置
             </h1>
-            <p class="text-muted small mb-0">管理网站全局设置、评论配置、侧边栏及自定义代码</p>
+            <p class="text-muted small mb-0">管理网站全局设置、评论配置、自定义代码</p>
           </div>
         </div>
       </div>

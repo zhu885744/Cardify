@@ -3,12 +3,6 @@
   <div class="article-page-wrapper">
     <!-- 加载状态：骨架加载器 -->
     <div v-if="loading">
-      <!-- 面包屑导航骨架 -->
-      <div class="card shadow-sm p-3 mt-2">
-        <div class="skeleton skeleton-breadcrumb mb-2"></div>
-        <div class="skeleton skeleton-breadcrumb-item"></div>
-      </div>
-      
       <!-- 文章内容骨架 -->
       <main class="card shadow-sm mt-2">
         <div class="p-3">
