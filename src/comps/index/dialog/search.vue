@@ -1,0 +1,1135 @@
+<!-- 搜索弹窗组件 -->
+<template>
+  <transition name="search-modal">
+    <div
+      v-if="visible"
+      class="search-modal-overlay"
+      @click.self="hide"
+    >
+      <div class="search-modal-container">
+        <div class="search-modal-content">
+          <!-- 关闭按钮 -->
+          <button
+            class="search-modal-close"
+            @click="hide"
+            aria-label="关闭"
+          >
+            <i class="bi bi-x-lg"></i>
+          </button>
+
+          <!-- 搜索输入区域 -->
+          <div class="search-input-wrapper">
+            <div class="search-input-group">
+              <i class="bi bi-search search-icon"></i>
+              <input
+                ref="searchInputRef"
+                type="text"
+                v-model="searchQuery"
+                class="search-input"
+                :placeholder="getSearchPlaceholder()"
+                @input="handleInput"
+                @keydown.up.prevent="handleKeyUp"
+                @keydown.down.prevent="handleKeyDown"
+                @keydown.enter.prevent="handleEnterKey"
+                @keydown.escape.prevent="hide"
+              />
+              <button
+                v-if="searchQuery"
+                class="search-clear-btn"
+                @click="clearQuery"
+                aria-label="清除"
+              >
+                <i class="bi bi-x"></i>
+              </button>
+            </div>
+
+            <!-- 搜索范围选择 -->
+            <div class="search-scopes">
+              <button
+                v-for="scope in scopes"
+                :key="scope.key"
+                class="search-scope-btn"
+                :class="{ active: searchScope === scope.key }"
+                @click="changeSearchScope(scope.key)"
+                :title="scope.label"
+              >
+                <i :class="scope.icon"></i>
+                <span>{{ scope.label }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 搜索内容区域 -->
+          <div class="search-content">
+            <!-- 热门搜索 -->
+            <div v-if="!loading && !searchQuery && searchHistory.length === 0" class="search-section">
+              <div class="section-header">
+                <i class="bi bi-trending-up"></i>
+                <span>热门搜索</span>
+              </div>
+              <div class="search-tags">
+                <span
+                  v-for="(item, index) in hotSearches"
+                  :key="index"
+                  class="search-tag"
+                  @click="useSearchHistory(item)"
+                >
+                  {{ item }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 搜索历史 -->
+            <div v-if="!loading && !searchQuery && searchHistory.length > 0" class="search-section">
+              <div class="section-header">
+                <i class="bi bi-clock-history"></i>
+                <span>搜索历史</span>
+                <button @click="clearSearchHistory" class="clear-history-btn">
+                  清除
+                </button>
+              </div>
+              <div class="search-tags">
+                <span
+                  v-for="(item, index) in searchHistory"
+                  :key="index"
+                  class="search-tag"
+                  @click="useSearchHistory(item)"
+                >
+                  {{ item }}
+                  <button @click.stop="removeSearchHistory(index)" class="tag-remove">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <!-- 搜索结果 -->
+            <div v-else-if="!loading && searchResults.length > 0" class="search-section">
+              <div class="results-list">
+                <div
+                  v-for="(result, index) in searchResults"
+                  :key="result.id || result.key"
+                  class="result-item"
+                  :class="{ selected: selectedIndex === index }"
+                  @click="navigateToResult(result)"
+                >
+                  <div class="result-icon-bar" :class="`result-icon-bar-${result.type}`">
+                    <i :class="getResultIcon(result.type)"></i>
+                  </div>
+                  <div class="result-content">
+                    <div class="result-header">
+                      <span class="result-title" v-html="highlightKeyword(getResultTitle(result))"></span>
+                      <span class="result-type" :class="`result-type-${result.type}`">
+                        {{ getResultTypeName(result.type) }}
+                      </span>
+                    </div>
+                    <p v-if="result.type === 'users' && result.description" class="result-desc">
+                      {{ result.description }}
+                    </p>
+                    <p v-else-if="result.type === 'links' && result.description" class="result-desc">
+                      {{ result.description }}
+                    </p>
+                    <p v-else-if="result.abstract" class="result-desc" v-html="highlightKeyword(result.abstract)"></p>
+                  </div>
+                  <div class="result-arrow">
+                    <i class="bi bi-chevron-right"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 无结果 -->
+            <div v-else-if="!loading && searchQuery && searchResults.length === 0" class="search-empty">
+              <div class="empty-icon">
+                <i class="bi bi-search"></i>
+              </div>
+              <p class="empty-title">没有找到相关结果</p>
+              <p class="empty-desc">试试这些热门搜索：</p>
+              <div class="empty-suggestions">
+                <button
+                  v-for="(item, index) in hotSearches.slice(0, 3)"
+                  :key="index"
+                  class="suggest-btn"
+                  @click="useSearchHistory(item)"
+                >
+                  {{ item }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 加载中 -->
+            <div v-else-if="loading" class="search-loading">
+              <div class="loading-spinner"></div>
+              <p>搜索中...</p>
+            </div>
+          </div>
+
+          <!-- 底部快捷键提示 -->
+          <div class="search-footer">
+            <div class="shortcut-hints">
+              <span class="hint"><kbd>Enter</kbd> 搜索/确认</span>
+              <span class="hint"><kbd>↑↓</kbd> 选择</span>
+              <span class="hint"><kbd>Esc</kbd> 关闭</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </transition>
+</template>
+
+<script setup>
+import { ref, nextTick, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { request } from '@/utils/network'
+import { toast } from '@/utils/app'
+import { cache } from '@/utils/network'
+import { STORAGE_KEYS } from '@/constants'
+
+const router = useRouter()
+
+const scopes = [
+  { key: 'all', label: '全部', icon: 'bi bi-search' },
+  { key: 'article', label: '文章', icon: 'bi bi-file-earmark-text' },
+  { key: 'page', label: '页面', icon: 'bi bi-file-earmark' },
+  { key: 'tag', label: '标签', icon: 'bi bi-tag' },
+  { key: 'links', label: '友链', icon: 'bi bi-link' },
+  { key: 'users', label: '用户', icon: 'bi bi-person' },
+]
+
+const hotSearches = [
+  '随记', '旅行', 'JavaScript', 'TypeScript', 'Node.js',
+  '前端开发', '后端开发', '算法', '数据库', '架构'
+]
+
+const visible = ref(false)
+const searchQuery = ref('')
+const loading = ref(false)
+const searchResults = ref([])
+const searchHistory = ref([])
+const searchScope = ref('all')
+const selectedIndex = ref(-1)
+const searchInputRef = ref(null)
+const debounceTimer = ref(null)
+const globalKeyHandler = ref(null)
+
+const show = () => {
+  visible.value = true
+  searchQuery.value = ''
+  searchResults.value = []
+  selectedIndex.value = -1
+  searchScope.value = 'all'
+  loadSearchHistory()
+  document.body.style.overflow = 'hidden'
+  
+  globalKeyHandler.value = (e) => {
+    if (!visible.value) return
+    
+    const target = e.target
+    const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+    
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      hide()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      handleKeyUp()
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      handleKeyDown()
+    } else if (e.key === 'Enter' && !isInput) {
+      e.preventDefault()
+      handleEnterKey()
+    }
+  }
+  
+  window.addEventListener('keydown', globalKeyHandler.value)
+  
+  nextTick(() => {
+    if (searchInputRef.value) {
+      searchInputRef.value.focus()
+    }
+  })
+}
+
+const hide = () => {
+  visible.value = false
+  searchQuery.value = ''
+  searchResults.value = []
+  selectedIndex.value = -1
+  clearTimeout(debounceTimer.value)
+  document.body.style.overflow = ''
+  
+  if (globalKeyHandler.value) {
+    window.removeEventListener('keydown', globalKeyHandler.value)
+    globalKeyHandler.value = null
+  }
+}
+
+const clearQuery = () => {
+  searchQuery.value = ''
+  searchResults.value = []
+  selectedIndex.value = -1
+  nextTick(() => {
+    if (searchInputRef.value) {
+      searchInputRef.value.focus()
+    }
+  })
+}
+
+const loadSearchHistory = () => {
+  const history = localStorage.getItem(STORAGE_KEYS.SEARCH_HISTORY)
+  if (history) {
+    try {
+      searchHistory.value = JSON.parse(history)
+    } catch {
+      searchHistory.value = []
+    }
+  }
+}
+
+const saveSearchHistory = (query) => {
+  if (!query) return
+  searchHistory.value = searchHistory.value.filter(item => item !== query)
+  searchHistory.value.unshift(query)
+  if (searchHistory.value.length > 10) {
+    searchHistory.value = searchHistory.value.slice(0, 10)
+  }
+  localStorage.setItem(STORAGE_KEYS.SEARCH_HISTORY, JSON.stringify(searchHistory.value))
+}
+
+const clearSearchHistory = () => {
+  searchHistory.value = []
+  localStorage.removeItem(STORAGE_KEYS.SEARCH_HISTORY)
+}
+
+const removeSearchHistory = (index) => {
+  searchHistory.value.splice(index, 1)
+  localStorage.setItem(STORAGE_KEYS.SEARCH_HISTORY, JSON.stringify(searchHistory.value))
+}
+
+const useSearchHistory = (query) => {
+  searchQuery.value = query
+  selectedIndex.value = -1
+  performSearch()
+}
+
+const changeSearchScope = (scope) => {
+  searchScope.value = scope
+  selectedIndex.value = -1
+  if (searchQuery.value.trim()) {
+    performSearch()
+  }
+}
+
+const getSearchPlaceholder = () => {
+  const map = {
+    article: '搜索文章...',
+    page: '搜索页面...',
+    tag: '搜索标签...',
+    links: '搜索友链...',
+    users: '搜索用户...',
+  }
+  return map[searchScope.value] || '搜索文章、页面、标签、友链或用户...'
+}
+
+const handleInput = () => {
+  clearTimeout(debounceTimer.value)
+  debounceTimer.value = setTimeout(() => {
+    if (searchQuery.value.trim()) {
+      performSearch()
+    } else {
+      searchResults.value = []
+      selectedIndex.value = -1
+    }
+  }, 300)
+}
+
+const handleKeyUp = () => {
+  if (searchResults.value.length > 0) {
+    if (selectedIndex.value > 0) {
+      selectedIndex.value--
+    } else if (selectedIndex.value === -1) {
+      selectedIndex.value = searchResults.value.length - 1
+    }
+  }
+}
+
+const handleKeyDown = () => {
+  if (searchResults.value.length > 0) {
+    if (selectedIndex.value < searchResults.value.length - 1) {
+      selectedIndex.value++
+    } else {
+      selectedIndex.value = -1
+    }
+  }
+}
+
+const handleEnterKey = () => {
+  if (selectedIndex.value >= 0 && selectedIndex.value < searchResults.value.length) {
+    navigateToResult(searchResults.value[selectedIndex.value])
+  } else if (searchQuery.value.trim()) {
+    performSearch()
+  }
+}
+
+const performSearch = async () => {
+  const query = searchQuery.value.trim()
+  if (!query) return
+
+  loading.value = true
+  searchResults.value = []
+  selectedIndex.value = -1
+
+  try {
+    const cacheKey = `search_results_${searchScope.value}_${query}`
+    const cacheExpire = 5
+
+    const cachedResults = cache.get(cacheKey)
+    if (cachedResults) {
+      searchResults.value = cachedResults
+      saveSearchHistory(query)
+      loading.value = false
+      return
+    }
+
+    let results = []
+
+    switch (searchScope.value) {
+      case 'article':
+        results = await searchArticles(query)
+        break
+      case 'page':
+        results = await searchPages(query)
+        break
+      case 'tag':
+        results = await searchTags(query)
+        break
+      case 'links':
+        results = await searchLinks(query)
+        break
+      case 'users':
+        results = await searchUsers(query)
+        break
+      default: {
+        const [articleResults, pageResults, tagResults, linksResults, usersResults] = await Promise.all([
+          searchArticles(query),
+          searchPages(query),
+          searchTags(query),
+          searchLinks(query),
+          searchUsers(query)
+        ])
+
+        const optimizedResults = []
+        const seenIds = new Set()
+
+        if (articleResults.length > 0) {
+          articleResults.sort((a, b) => new Date(b.create_time || 0) - new Date(a.create_time || 0))
+          articleResults.forEach(item => {
+            if (!seenIds.has(item.id)) { seenIds.add(item.id); optimizedResults.push(item) }
+          })
+        }
+        if (pageResults.length > 0) {
+          pageResults.sort((a, b) => new Date(b.create_time || 0) - new Date(a.create_time || 0))
+          pageResults.forEach(item => {
+            if (!seenIds.has(item.id)) { seenIds.add(item.id); optimizedResults.push(item) }
+          })
+        }
+        if (usersResults.length > 0) {
+          usersResults.forEach(item => {
+            if (!seenIds.has(item.id)) { seenIds.add(item.id); optimizedResults.push(item) }
+          })
+        }
+        if (linksResults.length > 0) {
+          linksResults.forEach(item => {
+            if (!seenIds.has(item.id)) { seenIds.add(item.id); optimizedResults.push(item) }
+          })
+        }
+        if (tagResults.length > 0) {
+          tagResults.slice(0, 3).forEach(item => {
+            if (!seenIds.has(item.id)) { seenIds.add(item.id); optimizedResults.push(item) }
+          })
+        }
+
+        results = optimizedResults
+        break
+      }
+    }
+
+    searchResults.value = results
+    cache.set(cacheKey, results, cacheExpire)
+    saveSearchHistory(query)
+  } catch (error) {
+    console.error('搜索失败:', error)
+    toast.error('搜索失败，请稍后重试')
+  } finally {
+    loading.value = false
+  }
+}
+
+const searchArticles = async (keyword) => {
+  try {
+    const { code, data } = await request.get(`/api/search/article?keyword=${encodeURIComponent(keyword)}&page=1&limit=50`)
+    if (code === 200 && data) {
+      const arr = data.data?.data || data.data
+      if (Array.isArray(arr)) return arr.map(item => ({ ...item, type: 'article' }))
+    }
+    return []
+  } catch { return [] }
+}
+
+const searchPages = async (keyword) => {
+  try {
+    const { code, data } = await request.get(`/api/search/pages?keyword=${encodeURIComponent(keyword)}&page=1&limit=50`)
+    if (code === 200 && data) {
+      const arr = data.data?.data || data.data
+      if (Array.isArray(arr)) return arr.map(item => ({ ...item, type: 'page' }))
+    }
+    return []
+  } catch { return [] }
+}
+
+const searchTags = async (keyword) => {
+  try {
+    const { code, data } = await request.get(`/api/search/tags?keyword=${encodeURIComponent(keyword)}&page=1&limit=50`)
+    if (code === 200 && data) {
+      const arr = data.data?.data || data.data
+      if (Array.isArray(arr)) return arr.map(item => ({ ...item, type: 'tag' }))
+    }
+    return []
+  } catch { return [] }
+}
+
+const searchLinks = async (keyword) => {
+  try {
+    const { code, data } = await request.get(`/api/search/links?keyword=${encodeURIComponent(keyword)}&page=1&limit=50`)
+    if (code === 200 && data) {
+      const arr = data.data?.data || data.data
+      if (Array.isArray(arr)) return arr.map(item => ({ ...item, type: 'links' }))
+    }
+    return []
+  } catch { return [] }
+}
+
+const searchUsers = async (keyword) => {
+  try {
+    const { code, data } = await request.get(`/api/search/users?keyword=${encodeURIComponent(keyword)}&page=1&limit=50`)
+    if (code === 200 && data) {
+      const arr = data.data?.data || data.data
+      if (Array.isArray(arr)) return arr.map(item => ({ ...item, type: 'users' }))
+    }
+    return []
+  } catch { return [] }
+}
+
+const getResultIcon = (type) => {
+  const map = {
+    article: 'bi bi-file-earmark-text',
+    page: 'bi bi-file-earmark',
+    tag: 'bi bi-tag',
+    links: 'bi bi-link',
+    users: 'bi bi-person',
+  }
+  return map[type] || 'bi bi-search'
+}
+
+const getResultTypeName = (type) => {
+  const map = { article: '文章', page: '页面', tag: '标签', links: '友链', users: '用户' }
+  return map[type] || '未知'
+}
+
+const getResultTitle = (result) => {
+  if (result.type === 'users' || result.type === 'links') {
+    return result.nickname || result.name || result.title || '未知'
+  }
+  return result.title || result.name || '未知'
+}
+
+const highlightKeyword = (text) => {
+  if (!text || !searchQuery.value) return text
+  const keyword = searchQuery.value.trim()
+  const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${escapedKeyword})`, 'gi')
+  return text.replace(regex, '<span class="highlight">$1</span>')
+}
+
+const navigateToResult = (result) => {
+  hide()
+  switch (result.type) {
+    case 'article':
+      if (result.id) router.push(`/archives/${result.id}`)
+      break
+    case 'page':
+      if (result.key) router.push(`/${result.key}`)
+      else toast.error('页面路径无效')
+      break
+    case 'tag':
+      if (result.id) router.push(`/tag/${result.id}`)
+      break
+    case 'links':
+      if (result.url) window.open(result.url, '_blank')
+      else toast.error('友链链接无效')
+      break
+    case 'users':
+      if (result.id) router.push(`/author/${result.id}`)
+      break
+  }
+}
+
+onUnmounted(() => {
+  clearTimeout(debounceTimer.value)
+  document.body.style.overflow = ''
+  
+  if (globalKeyHandler.value) {
+    window.removeEventListener('keydown', globalKeyHandler.value)
+    globalKeyHandler.value = null
+  }
+})
+
+defineExpose({ show, hide })
+</script>
+
+<style scoped>
+.search-modal-enter-active,
+.search-modal-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.search-modal-enter-from,
+.search-modal-leave-to {
+  opacity: 0;
+}
+
+.search-modal-enter-active .search-modal-container,
+.search-modal-leave-active .search-modal-container {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+
+.search-modal-enter-from .search-modal-container,
+.search-modal-leave-to .search-modal-container {
+  transform: translateY(-20px) scale(0.98);
+  opacity: 0;
+}
+
+.search-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1060;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.search-modal-container {
+  width: 100%;
+  max-width: 560px;
+  max-height: 75vh;
+  overflow: hidden;
+}
+
+.search-modal-content {
+  background: var(--bs-body-bg);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 4px 16px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  border: 1px solid var(--bs-border-color);
+  display: flex;
+  flex-direction: column;
+  max-height: 75vh;
+}
+
+.search-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--bs-body-color);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 1;
+}
+
+.search-modal-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--bs-body-color);
+}
+
+.search-input-wrapper {
+  padding: 20px 24px 16px;
+  position: relative;
+}
+
+.search-input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 16px;
+  color: var(--bs-secondary-color);
+  font-size: 1rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 14px 16px 14px 44px;
+  font-size: 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 12px;
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+  outline: none;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.15);
+  background: var(--bs-body-bg);
+}
+
+.search-input::placeholder {
+  color: var(--bs-secondary-color);
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bs-border-color);
+  color: var(--bs-body-color);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.search-clear-btn:hover {
+  background: var(--bs-secondary-color);
+}
+
+.search-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.search-scope-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-scope-btn:hover {
+  border-color: var(--bs-primary);
+  color: var(--bs-primary);
+  background: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.search-scope-btn.active {
+  border-color: var(--bs-primary);
+  color: white;
+  background: var(--bs-primary);
+}
+
+.search-scope-btn i {
+  font-size: 0.625rem;
+}
+
+.search-content {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 0 24px;
+  max-height: 400px;
+}
+
+.search-section {
+  padding: 8px 0 16px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--bs-secondary-color);
+}
+
+.section-header i {
+  font-size: 0.75rem;
+}
+
+.clear-history-btn {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.clear-history-btn:hover {
+  color: var(--bs-danger);
+  background: rgba(var(--bs-danger-rgb), 0.1);
+}
+
+.search-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--bs-body-color);
+  background: var(--bs-tertiary-bg);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.search-tag:hover {
+  background: var(--bs-primary);
+  color: white;
+}
+
+.tag-remove {
+  margin-left: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  font-size: 0.625rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.search-tag:hover .tag-remove {
+  opacity: 1;
+}
+
+.tag-remove:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.results-list {
+  padding: 4px 0;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 4px;
+}
+
+.result-item:hover {
+  background: var(--bs-tertiary-bg);
+}
+
+.result-item.selected {
+  background: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.result-icon-bar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 14px;
+  font-size: 1.125rem;
+  color: white;
+}
+
+.result-icon-bar-article { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+.result-icon-bar-page { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+.result-icon-bar-tag { background: linear-gradient(135deg, #10b981, #34d399); }
+.result-icon-bar-links { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+.result-icon-bar-users { background: linear-gradient(135deg, #ec4899, #f472b6); }
+
+.result-content {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.result-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--bs-body-color);
+  line-height: 1.4;
+}
+
+.result-type {
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+  color: white;
+}
+
+.result-type-article { background: #3b82f6; }
+.result-type-page { background: #8b5cf6; }
+.result-type-tag { background: #10b981; }
+.result-type-links { background: #f59e0b; }
+.result-type-users { background: #ec4899; }
+
+.result-desc {
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+  line-height: 1.5;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.result-arrow {
+  color: var(--bs-secondary-color);
+  font-size: 0.875rem;
+  margin-left: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.result-item:hover .result-arrow,
+.result-item.selected .result-arrow {
+  opacity: 1;
+}
+
+.highlight {
+  background-color: rgba(250, 204, 21, 0.4);
+  color: var(--bs-body-color);
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.search-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--bs-tertiary-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bs-secondary-color);
+  font-size: 2rem;
+  margin-bottom: 16px;
+}
+
+.empty-title {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--bs-body-color);
+  margin: 0 0 6px;
+}
+
+.empty-desc {
+  font-size: 0.875rem;
+  color: var(--bs-secondary-color);
+  margin: 0 0 16px;
+}
+
+.empty-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.suggest-btn {
+  padding: 6px 16px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--bs-body-color);
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggest-btn:hover {
+  border-color: var(--bs-primary);
+  color: var(--bs-primary);
+}
+
+.search-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--bs-border-color);
+  border-top-color: var(--bs-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.search-loading p {
+  font-size: 0.875rem;
+  color: var(--bs-secondary-color);
+  margin: 0;
+}
+
+.search-footer {
+  padding: 12px 24px 16px;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.shortcut-hints {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+kbd {
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.6875rem;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--bs-body-color);
+}
+
+@media (max-width: 575.98px) {
+  .search-modal-overlay {
+    padding-top: 5vh;
+  }
+
+  .search-modal-content {
+    border-radius: 12px;
+  }
+
+  .search-input-wrapper {
+    padding: 16px 16px 12px;
+  }
+
+  .search-content {
+    padding: 0 16px;
+  }
+
+  .result-item {
+    padding: 10px 12px;
+  }
+
+  .result-icon-bar {
+    width: 36px;
+    height: 36px;
+    margin-right: 12px;
+    font-size: 1rem;
+  }
+
+  .result-title {
+    font-size: 0.875rem;
+  }
+
+  .search-scope-btn span {
+    display: none;
+  }
+
+  .search-scope-btn {
+    padding: 6px 10px;
+  }
+}
+
+[data-bs-theme=dark] {
+  .search-tag:hover {
+    background: var(--bs-primary) !important;
+  }
+
+  .highlight {
+    background-color: rgba(250, 204, 21, 0.25);
+  }
+}
+</style>

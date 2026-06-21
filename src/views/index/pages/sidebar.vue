@@ -14,12 +14,11 @@
           <div class="position-relative d-inline-block mb-3">
             <div class="avatar-container position-relative">
               <img
-                :src="defaultAvatar"
-                :data-src="store.comm.login.user.avatar || defaultAvatar"
+                :src="store.comm.login.user.avatar || defaultAvatar"
                 :alt="store.comm.login.user.nickname || '用户头像'"
-                class="rounded-3 user-avatar lazy-img"
-                @load="onImageLoad"
-                @error="handleImageError"
+                class="rounded-3 user-avatar"
+                loading="lazy"
+                decoding="async"
               >
               <div class="avatar-overlay rounded-3">
                 <div class="avatar-status" :class="{ 'online': store.comm.login.user.login_time && (Date.now() / 1000 - store.comm.login.user.login_time < 86400) }"></div>
@@ -65,11 +64,10 @@
           <div class="position-relative d-inline-block mb-3">
             <img
               :src="defaultAvatar"
-              :data-src="defaultAvatar"
               alt="头像"
-              class="rounded-3 user-avatar lazy-img"
-              @load="onImageLoad"
-              @error="handleImageError"
+              class="rounded-3 user-avatar"
+              loading="lazy"
+              decoding="async"
             >
           </div>
           
@@ -179,12 +177,11 @@
               </div>
               <!-- 头像 -->
               <img
-                :src="defaultAvatar"
-                :data-src="user.avatar || defaultAvatar"
+                :src="user.avatar || defaultAvatar"
                 alt="用户头像"
-                class="rank-avatar lazy-img"
-                @load="onImageLoad"
-                @error="handleImageError"
+                class="rank-avatar"
+                loading="lazy"
+                decoding="async"
               >
             </div>
 
@@ -329,12 +326,11 @@
             <!-- 评论头部 -->
             <div class="d-flex align-items-center gap-2 mb-2">
               <img
-                :src="defaultAvatar"
-                :data-src="comment.avatar || defaultAvatar"
+                :src="comment.avatar || defaultAvatar"
                 alt="用户头像"
-                class="comment-avatar lazy-img"
-                @load="onImageLoad"
-                @error="handleImageError"
+                class="comment-avatar"
+                loading="lazy"
+                decoding="async"
               >
               <div class="flex-grow-1 min-w-0">
                 <div class="d-flex justify-content-between align-items-center">
@@ -611,154 +607,6 @@ const countdownData = computed(() => {
   }
 })
 
-// 图片缓存
-const imageCache = new Set()
-
-// Intersection Observer 用于图片懒加载
-let observer = null
-
-// 初始化Intersection Observer
-const initIntersectionObserver = () => {
-  if (!('IntersectionObserver' in window)) {
-    // 浏览器不支持 IntersectionObserver，回退到立即加载
-    loadAllImages()
-    return
-  }
-
-  // 根据屏幕尺寸动态调整rootMargin
-  const screenHeight = window.innerHeight
-  const rootMarginValue = `${Math.min(screenHeight * 0.3, 200)}px 0px ${Math.min(screenHeight * 0.3, 200)}px 0px`
-
-  observer = new IntersectionObserver((entries) => {
-    // 批量处理观察到的图片
-    const imagesToLoad = []
-    
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const img = entry.target
-        const dataSrc = img.dataset.src
-        
-        if (dataSrc) {
-          imagesToLoad.push(img)
-        }
-      }
-    })
-    
-    // 限制同时加载的图片数量，避免网络拥塞
-    const batchSize = 3
-    for (let i = 0; i < Math.min(imagesToLoad.length, batchSize); i++) {
-      const img = imagesToLoad[i]
-      // 开始加载实际图片
-      img.src = img.dataset.src
-      img.classList.add('lazy-loading')
-      observer.unobserve(img)
-    }
-    
-    // 剩余图片延迟加载
-    if (imagesToLoad.length > batchSize) {
-      setTimeout(() => {
-        for (let i = batchSize; i < imagesToLoad.length; i++) {
-          const img = imagesToLoad[i]
-          img.src = img.dataset.src
-          img.classList.add('lazy-loading')
-          observer.unobserve(img)
-        }
-      }, 100)
-    }
-  }, {
-    rootMargin: rootMarginValue, // 动态调整预加载区域
-    threshold: 0.01, // 只要有1%的区域可见就开始加载
-    root: null // 使用默认根元素（视口）
-  })
-}
-
-// 观察所有懒加载图片
-const observeLazyImages = () => {
-  nextTick(() => {
-    const lazyImages = document.querySelectorAll('.lazy-img:not([data-observed])')
-    if (lazyImages.length > 0) {
-      // 优先观察可视区域内的图片
-      const visibleImages = Array.from(lazyImages).filter(img => {
-        const rect = img.getBoundingClientRect()
-        return rect.top < window.innerHeight + 200 && rect.bottom > -100
-      })
-      
-      // 先观察可视区域内的图片
-      visibleImages.forEach(img => {
-        if (observer) {
-          observer.observe(img)
-          img.dataset.observed = 'true'
-        }
-      })
-      
-      // 延迟观察其他图片，减少初始加载压力
-      setTimeout(() => {
-        const remainingImages = Array.from(lazyImages).filter(img => !img.dataset.observed)
-        remainingImages.forEach(img => {
-          if (observer) {
-            observer.observe(img)
-            img.dataset.observed = 'true'
-          }
-        })
-      }, 200)
-    }
-  })
-}
-
-// 加载所有图片（回退方案）
-const loadAllImages = () => {
-  const lazyImages = document.querySelectorAll('.lazy-img')
-  lazyImages.forEach(img => {
-    const dataSrc = img.dataset.src
-    if (dataSrc) {
-      img.src = dataSrc
-    }
-  })
-}
-
-// 图片加载成功处理
-const onImageLoad = (event) => {
-  const img = event.target
-  const src = img.src
-  
-  // 添加到缓存
-  if (src && !imageCache.has(src)) {
-    imageCache.add(src)
-  }
-  
-  // 使用requestAnimationFrame优化DOM操作，减少重绘
-  requestAnimationFrame(() => {
-    // 移除loading样式
-    img.classList.remove('lazy-loading')
-    img.classList.add('lazy-loaded')
-    // 清理data-observed属性，释放内存
-    delete img.dataset.observed
-  })
-}
-
-// 图片加载失败处理
-const handleImageError = (event) => {
-  const img = event.target
-  // 使用requestAnimationFrame优化DOM操作，减少重绘
-  requestAnimationFrame(() => {
-    // 移除loading样式
-    img.classList.remove('lazy-loading')
-    
-    // 尝试加载默认图片
-    if (img.src !== defaultAvatar) {
-      img.src = defaultAvatar
-    } else {
-      // 如果默认图片也加载失败，显示错误状态
-      img.classList.add('lazy-error')
-    }
-    
-    // 防止无限错误循环
-    img.onerror = null
-    // 清理data-observed属性，释放内存
-    delete img.dataset.observed
-  })
-}
-
 // 检测深色模式
 const detectDarkMode = () => {
   const pageDark = document.documentElement.classList.contains('dark')
@@ -948,19 +796,27 @@ const getLevelRank = async () => {
     if (response.code === 200) {
       // 按等级值排序，等级值基于用户当前经验值计算
       const users = response.data.data || []
-      levelRankList.value = users
-        // 过滤掉经验值为0或null的用户，优先显示有经验值的用户
-        .filter(user => (user.exp || 0) > 0)
+      
+      // 优化：使用过滤和排序
+      const filteredUsers = users.filter(user => (user.exp || 0) > 0)
+      
+      // 使用 Map 缓存计算过的等级，避免重复计算
+      const levelMap = new Map()
+      const getLevel = (user) => {
+        if (levelMap.has(user.id)) return levelMap.get(user.id)
+        const level = calculateLevel(user.exp || 0)
+        levelMap.set(user.id, level)
+        return level
+      }
+      
+      levelRankList.value = filteredUsers
         .sort((a, b) => {
-          // 根据用户当前经验值计算等级
-          const levelA = calculateLevel(a.exp || 0)
-          const levelB = calculateLevel(b.exp || 0)
+          const levelA = getLevel(a)
+          const levelB = getLevel(b)
           
-          // 先按等级值排序
           if (levelB !== levelA) {
             return levelB - levelA // 降序排序
           }
-          // 等级相同则按经验值排序
           return (b.exp || 0) - (a.exp || 0)
         })
         .slice(0, 5) // 取前5名
@@ -1209,8 +1065,6 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', det
 // 组件挂载
 onMounted(() => {
   detectDarkMode()
-  // 初始化Intersection Observer
-  initIntersectionObserver()
   
   Promise.all([
     getHotArticles(),
@@ -1219,10 +1073,7 @@ onMounted(() => {
     getLatestComments(),
     initUserStats(),
     getLevelInfo()
-  ]).then(() => {
-    // 数据加载完成后观察图片
-    setTimeout(observeLazyImages, 100)
-  }).catch(err => console.error('数据加载失败：', err))
+  ]).catch(err => console.error('数据加载失败：', err))
 })
 </script>
 
@@ -1767,32 +1618,6 @@ onMounted(() => {
     transform: scale(1.1);
     box-shadow: 0 0 20px rgba(16, 185, 129, 0.9);
   }
-}
-
-/* 懒加载图片样式 */
-.lazy-img {
-  transition: all 0.3s ease;
-}
-
-.lazy-loading {
-  filter: blur(8px);
-  opacity: 0.6;
-  transform: scale(0.95);
-}
-
-.lazy-loaded {
-  filter: blur(0);
-  opacity: 1;
-  transform: scale(1);
-  animation: fadeIn 0.6s ease-out;
-}
-
-.lazy-error {
-  background: linear-gradient(135deg, #e9ecef, #dee2e6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #868e96;
 }
 
 /* 响应式调整 */

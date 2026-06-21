@@ -1,10 +1,10 @@
 <!-- src\comps\custom\i-markdown.vue 文章markdown内容渲染组件 -->
 <template>
-  <div class="markdown-content" v-html="renderedMd"></div>
+  <div ref="containerRef" class="markdown-content" v-html="renderedMd" @click="handleCopyClick"></div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 
 // ==============================================
@@ -23,6 +23,7 @@ const props = defineProps({
 })
 
 const renderedMd = ref('')
+const containerRef = ref(null)
 
 // 渲染 markdown
 const renderMarkdown = (content) => {
@@ -85,7 +86,7 @@ const renderMarkdown = (content) => {
   renderedMd.value = html
 }
 
-// 复制功能
+// 复制功能（事件委托）
 const handleCopyClick = (e) => {
   const button = e.target.closest('.copy-button')
   if (!button) return
@@ -106,40 +107,25 @@ const handleCopyClick = (e) => {
   })
 }
 
-const addCopyEventListeners = () => {
-  document.querySelectorAll('.copy-button').forEach(button => {
-    button.removeEventListener('click', handleCopyClick)
-    button.addEventListener('click', handleCopyClick)
-  })
+// Fancybox 绑定
+const bindFancybox = () => {
+  if (window.Fancybox) {
+    Fancybox.unbind("[data-fancybox]")
+    Fancybox.bind("[data-fancybox]", {
+      Hash: false,
+      Thumbs: { autoStart: false }
+    })
+  }
 }
 
 // 监听 + 生命周期
-renderMarkdown(props.modelValue)
-
 watch(() => props.modelValue, (newVal) => {
   renderMarkdown(newVal)
-  setTimeout(() => {
-    addCopyEventListeners()
-    if (window.Fancybox) {
-      Fancybox.unbind("[data-fancybox]")
-      Fancybox.bind("[data-fancybox]", {
-        Hash: false,
-        Thumbs: { autoStart: false }
-      })
-    }
-  }, 100)
+  nextTick(() => bindFancybox())
 }, { immediate: true })
 
 onMounted(() => {
-  setTimeout(() => {
-    addCopyEventListeners()
-    if (window.Fancybox) {
-      Fancybox.bind("[data-fancybox]", {
-        Hash: false,
-        Thumbs: { autoStart: false }
-      })
-    }
-  }, 100)
+  nextTick(() => bindFancybox())
 })
 </script>
 

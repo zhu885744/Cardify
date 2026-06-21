@@ -400,7 +400,7 @@ watch(
       fetchUserInfo()
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 )
 </script>
 

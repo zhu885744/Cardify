@@ -156,12 +156,11 @@
             <!-- 文章封面 -->
             <div class="article-cover flex-shrink-0">
               <img
-                :src="loadingGif"
-                :data-src="getCoverImg(article)"
+                :src="getCoverImg(article)"
                 :alt="article.title"
-                class="article-cover-img w-100 h-100 object-cover lazy-img"
+                class="article-cover-img w-100 h-100 object-cover"
                 loading="lazy"
-                @load="onImageLoad"
+                decoding="async"
                 @error="handleImageError"
               />
             </div>
@@ -255,19 +254,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed, nextTick } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { request } from '@/utils/network'
 
 // 导入本地静态资源
 import defaultCover from '@/assets/img/fm.avif'
-import loadingGif from '@/assets/img/ljz.gif'
 
 import { useCommStore } from '@/store/comm'
 import { usePageTitle } from '@/utils/app'
-
-// 图片缓存集合，避免重复请求
-const imageCache = new Set()
 
 // 全局状态管理
 const store = {
@@ -292,47 +287,6 @@ const total = ref(0)                    // 文章总数
 const limit = ref(10)                   // 每页条数
 const articleCount = ref(0)             // 分类下文章总数
 const hasImageMode = ref(true)          // 显示模式：true=有图模式，false=列表模式
-
-/**
- * 从后端获取显示模式配置
- */
-const loadDisplayMode = async () => {
-  try {
-    const response = await request.get('/api/config/one', { key: 'cardify_functions' })
-    if (response.code === 200 && response.data) {
-      const config = response.data.json || {}
-      hasImageMode.value = config.display_mode !== false
-    }
-  } catch (error) {
-    console.error('读取显示模式设置失败:', error)
-    hasImageMode.value = true
-  }
-}
-
-/**
- * 保存显示模式到后端
- */
-const saveDisplayMode = async (mode) => {
-  try {
-    await request.post('/api/config/save', {
-      key: 'cardify_functions',
-      json: { display_mode: mode }
-    })
-  } catch (error) {
-    console.error('保存显示模式设置失败:', error)
-  }
-}
-
-/**
- * 切换显示模式
- */
-const changeDisplayMode = async (mode) => {
-  hasImageMode.value = mode
-  await saveDisplayMode(mode)
-}
-
-// IntersectionObserver 实例
-let observer = null
 
 // 计算总页数
 const pageCount = computed(() => {
@@ -394,109 +348,14 @@ const getCoverImg = (article) => {
 }
 
 /**
- * 图片加载成功回调
- */
-const onImageLoad = (event) => {
-  const img = event.target
-  imageCache.add(img.src)
-
-  requestAnimationFrame(() => {
-    img.classList.remove('lazy-loading')
-    img.classList.add('lazy-loaded')
-    delete img.dataset.observed
-  })
-}
-
-/**
  * 图片加载失败回调
  */
 const handleImageError = (event) => {
   const img = event.target
-
-  requestAnimationFrame(() => {
-    img.classList.remove('lazy-loading')
-
-    if (img.src !== defaultCover) {
-      img.src = defaultCover
-    } else {
-      img.classList.add('lazy-error')
-    }
-
-    img.onerror = null
-    delete img.dataset.observed
-  })
-}
-
-/**
- * 预加载图片
- */
-const preloadImage = (src) => {
-  if (!src || imageCache.has(src)) {
-    return Promise.resolve()
+  if (img.src !== defaultCover) {
+    img.src = defaultCover
   }
-
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.src = src
-    img.onload = resolve
-    img.onerror = reject
-  })
-}
-
-/**
- * 初始化 IntersectionObserver 实现图片懒加载
- */
-const initIntersectionObserver = () => {
-  if (!('IntersectionObserver' in window)) {
-    loadAllImages()
-    return
-  }
-
-  observer = new IntersectionObserver((entries) => {
-    const imagesToLoad = []
-
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const img = entry.target
-        if (img.dataset.src) {
-          imagesToLoad.push(img)
-        }
-      }
-    })
-
-    imagesToLoad.forEach(img => {
-      img.src = img.dataset.src
-      img.classList.add('lazy-loading')
-      observer.unobserve(img)
-    })
-  }, {
-    rootMargin: '300px 0px 200px 0px',
-    threshold: 0.01
-  })
-}
-
-/**
- * 观察页面中所有懒加载图片
- */
-const observeLazyImages = () => {
-  nextTick(() => {
-    const lazyImages = document.querySelectorAll('.lazy-img:not([data-observed])')
-    lazyImages.forEach(img => {
-      observer?.observe(img)
-      img.dataset.observed = 'true'
-    })
-  })
-}
-
-/**
- * 兜底方案：直接加载所有图片
- */
-const loadAllImages = () => {
-  document.querySelectorAll('.lazy-img').forEach(img => {
-    if (img.dataset.src) {
-      img.src = img.dataset.src
-    }
-  })
+  img.onerror = null
 }
 
 /**
@@ -562,7 +421,6 @@ const getCategoryArticles = async (page = 1) => {
     if (res.code === 200) {
       articles.value = res.data?.data || []
       total.value = res.data?.count || 0
-      observeLazyImages()
     }
   } catch {
     articles.value = []
@@ -611,8 +469,6 @@ watch(
 
 // 页面挂载
 onMounted(async () => {
-  await loadDisplayMode()
-  initIntersectionObserver()
   await initPage(getCurrentCategoryId())
 })
 </script>
@@ -834,35 +690,6 @@ onMounted(async () => {
   object-fit: cover;
   transition: all 0.5s ease;
   border-radius: 0.75rem 0.75rem 0 0;
-}
-
-/* 加载中的图片样式 */
-.article-cover-img.lazy-loading {
-  filter: blur(8px);
-  opacity: 0.6;
-  transform: scale(1.05);
-}
-
-/* 加载完成的图片样式 */
-.article-cover-img.lazy-loaded {
-  filter: blur(0);
-  opacity: 1;
-  animation: fadeIn 0.6s ease-out;
-}
-
-/* 加载失败的图片样式 */
-.article-cover-img.lazy-error {
-  background: linear-gradient(135deg, #e9ecef, #dee2e6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #868e96;
-  font-size: 1.5rem;
-}
-
-.article-cover-img.lazy-error::after {
-  content: '📷';
-  font-size: 2rem;
 }
 
 /* 内容区域 */
@@ -1088,13 +915,6 @@ img {
   }
 }
 
-/* 如果gif路径不对，可以使用纯CSS加载动画 */
-.article-cover-img:not([src]) {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: loading 1.5s infinite;
-}
-
 /* 响应式调整 */
 @media (max-width: 768px) {
   .grid-article-list {
@@ -1232,11 +1052,6 @@ img {
   
   .meta-item .bi {
     color: var(--bs-tertiary-color);
-  }
-  
-  /* 加载动画 */
-  .article-cover-img:not([src]) {
-    background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
   }
   
   /* 骨架加载器暗黑模式 */

@@ -25,7 +25,7 @@
 
       <!-- 移动端右侧搜索按钮 -->
       <div class="d-flex align-items-center ms-3">
-        <button class="btn d-lg-none border-0 bg-transparent" type="button" @click="router.push('/search')">
+        <button class="btn d-lg-none border-0 bg-transparent" type="button" @click="method.showSearch()">
           <i class="bi bi-search"></i>
         </button>
       </div>
@@ -82,7 +82,7 @@
         <!-- 右侧功能区域 -->
         <div class="d-flex align-items-center">
           <!-- 搜索按钮 -->
-          <button class="btn btn-outline-secondary me-2" type="button" @click="router.push('/search')">
+          <button class="btn btn-outline-secondary me-2" type="button" @click="method.showSearch()">
             <i class="bi bi-search"></i>
           </button>
           
@@ -326,7 +326,7 @@
         
         <!-- 其他功能按钮 -->
         <div class="d-flex gap-2 mt-3">
-          <button class="btn btn-outline-secondary flex-grow-1" type="button" @click="router.push('/search')">
+          <button class="btn btn-outline-secondary flex-grow-1" type="button" @click="method.showSearch()">
             <i class="bi bi-search me-1"></i>搜索
           </button>
           <button 
@@ -340,6 +340,9 @@
       </div>
     </div>
   </div>
+
+  <!-- 引入搜索对话框组件 -->
+  <DialogSearch ref="searchDialog" />
 
   <!-- 引入认证对话框组件 -->
   <DialogAuth ref="authDialog" @finish="method.onAuthFinish" />
@@ -358,6 +361,7 @@ import { STORAGE_KEYS } from '@/constants'
 
 // 引入对话框组件
 import DialogAuth from '@/comps/index/dialog/auth.vue'
+import DialogSearch from '@/comps/index/dialog/search.vue'
 
 // 初始化router
 const router = useRouter()
@@ -376,6 +380,7 @@ const signLoading = ref(false)
 
 // 组件引用
 const authDialog = ref(null)
+const searchDialog = ref(null)
 
 // 存储
 const store = {
@@ -425,6 +430,20 @@ const state = reactive({
 
 // 方法定义
 const method = {
+  // 显示搜索弹窗
+  showSearch: () => {
+    closeSidebar()
+    if (searchDialog.value && searchDialog.value.show) {
+      searchDialog.value.show()
+    } else {
+      setTimeout(() => {
+        if (searchDialog.value && searchDialog.value.show) {
+          searchDialog.value.show()
+        }
+      }, 100)
+    }
+  },
+
   // 显示对话框
   showLogin: () => {
     // 先关闭侧边栏
@@ -854,6 +873,14 @@ onMounted(() => {
   window.addEventListener('resize', () => {
     if (window.innerWidth >= 992) {
       closeSidebar()
+    }
+  })
+
+  // 全局键盘快捷键 Ctrl+K / Cmd+K 打开搜索
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault()
+      method.showSearch()
     }
   })
   

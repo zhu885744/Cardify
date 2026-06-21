@@ -81,10 +81,9 @@
 
   <!-- 文章列表 -->
   <div v-else :class="['article-list-container mt-2', hasImageMode ? 'grid-article-list' : 'list-article-list']">
-    <!-- 先显示置顶文章 -->
     <div 
-      v-for="article in sortedArticleList.filter(article => article.top === 1)" 
-      :key="`sticky-${article.id}`"
+      v-for="article in sortedArticleList" 
+      :key="article.id"
       :class="[
         'card', 
         hasImageMode ? 'article-item-card shadow-sm hover-shadow' : 'article-item-list shadow-sm hover-shadow mt-2',
@@ -146,75 +145,6 @@
             <h3 class="article-title-list h5 fw-bold mb-2">
               {{ article.title }}
             </h3>
-            <p class="article-desc-list text-muted mb-3">
-              {{ article.abstract || "暂无摘要" }}
-            </p>
-            <div class="d-flex align-items-center gap-4 article-meta-info">
-              <span><i class="bi bi-person-fill me-1"></i>{{ article?.result?.author?.nickname || '匿名' }}</span>
-              <span><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
-              <span><i class="bi bi-heart-fill me-1"></i>{{ article?.result?.like?.length || 0 }}</span>
-              <span><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 再显示非置顶文章 -->
-    <div 
-      v-for="article in sortedArticleList.filter(article => article.top !== 1)" 
-      :key="article.id"
-      :class="[
-        'card', 
-        hasImageMode ? 'article-item-card shadow-sm hover-shadow' : 'article-item-list shadow-sm hover-shadow mt-2'
-      ]"
-      @click="toArticleDetail(article.id)" 
-      style="cursor: pointer;"
-    >
-      <!-- 有图模式布局 -->
-      <div v-if="hasImageMode" class="card-body p-0 d-flex flex-column h-100">
-        <!-- 文章封面 -->
-        <div class="article-cover flex-shrink-0">
-          <img 
-            :src="loadingGif" 
-            :data-src="getCoverImg(article)" 
-            :alt="article.title" 
-            class="article-cover-img w-100 h-100 object-cover lazy-img"
-            @load="onImageLoad"
-            @error="handleImageError"
-          >
-        </div>
-        <!-- 内容 -->
-        <div class="article-content p-2 flex-grow-1 d-flex flex-column">
-          <!-- 文章标题 -->
-          <h3 class="article-title fw-bold mb-1 m-0">{{ article.title }}</h3>
-
-          <!-- 文章摘要 -->
-          <p class="article-desc text-truncate-1 mt-auto mb-1">
-            {{ article.abstract || '暂无摘要' }}
-          </p>
-
-          <!-- 元信息 -->
-          <div class="article-meta d-flex align-items-center w-100 m-0">
-            <div class="meta-left d-flex align-items-center gap-0.5">
-              <span class="meta-item"><i class="bi bi-folder-fill"></i>{{ article?.result?.group?.[0]?.name || '未分类' }}</span>
-            </div>
-            <div class="meta-right d-flex align-items-center gap-0.5 ms-auto">
-              <span class="meta-item"><i class="bi bi-calendar-fill"></i>{{ formatTime(article.publish_time) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- 列表模式布局 -->
-      <div v-else class="card-body p-4">
-        <div class="d-flex align-items-start gap-4">
-          <div class="flex-grow-1 min-width-0">
-            <div class="d-flex align-items-center gap-2 mb-2">
-              <span class="badge bg-secondary-subtle text-secondary text-xs">{{ article?.result?.group?.[0]?.name || "未分类" }}</span>
-              <span class="text-xs text-muted">{{ formatTime(article.publish_time) }}</span>
-            </div>
-            <h3 class="article-title-list h5 fw-bold mb-2">{{ article.title }}</h3>
             <p class="article-desc-list text-muted mb-3">
               {{ article.abstract || "暂无摘要" }}
             </p>
@@ -297,7 +227,7 @@ const bannersLoading = ref(false)
 const loadDisplayMode = async () => {
   try {
     // 优先从 store 读取（siteInfo 已经在应用初始化时缓存过了）
-    if (commStore.siteInfo && commStore.siteInfo.display_mode !== undefined) {
+    if (commStore.siteInfo?.display_mode !== undefined) {
       hasImageMode.value = commStore.siteInfo.display_mode !== false
       return
     }

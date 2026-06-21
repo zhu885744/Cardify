@@ -415,6 +415,8 @@
                                   class="message-avatar rounded-circle me-3 border border-light shadow-sm" 
                                   alt="用户头像"
                                   style="width: 40px; height: 40px; object-fit: cover;"
+                                  loading="lazy"
+                                  decoding="async"
                                 >
                                 <div>
                                   <h6 class="fw-semibold mb-0">
@@ -504,6 +506,8 @@
                                   class="message-avatar rounded-circle me-3 border border-light shadow-sm" 
                                   alt="回复用户头像"
                                   style="width: 35px; height: 35px; object-fit: cover;"
+                                  loading="lazy"
+                                  decoding="async"
                                 >
                                 <div class="flex-grow-1">
                                   <h6 class="fw-semibold mb-0">
@@ -1441,6 +1445,17 @@ const getArchivePageData = async () => {
 
 // 获取文章列表
 const fetchArticles = async () => {
+  const cacheKey = 'archive_articles'
+  const cacheExpire = 300
+  const cached = cache.get(cacheKey)
+  
+  if (cached) {
+    articles.value = cached.data
+    articleTotal.value = cached.count
+    groupArticlesByYearMonth(cached.data)
+    return
+  }
+  
   articlesLoading.value = true
   articlesError.value = false
   articlesErrorMsg.value = ''
@@ -1455,6 +1470,7 @@ const fetchArticles = async () => {
       articleTotal.value = count
       
       groupArticlesByYearMonth(articles.value)
+      cache.set(cacheKey, { data, count }, cacheExpire)
     } else {
       articlesError.value = true
       articlesErrorMsg.value = res?.msg || '获取文章数据失败'
@@ -1889,27 +1905,32 @@ const openReplyModal = (message) => {
   replyInput.value = `@${nickname} `
 }
 
+const cleanupModal = () => {
+  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove())
+  document.body.classList.remove('modal-open')
+  document.body.style.removeProperty('overflow')
+  document.body.style.removeProperty('padding-right')
+}
+
 const closeReplyModal = () => {
   if (window.bootstrap) {
     const modal = window.bootstrap.Modal.getInstance(document.getElementById('replyModal'))
     if (modal) modal.hide()
   }
-  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove())
-  document.body.classList.remove('modal-open')
-  document.body.style.removeProperty('overflow')
-  document.body.style.removeProperty('padding-right')
+  cleanupModal()
   replyInput.value = ''
 }
 
 const navigateToAuthor = (authorId) => {
   const modalElement = document.getElementById('replyModal')
+  if (!modalElement) {
+    router.push(`/author/${authorId}`)
+    return
+  }
   
   const handleHidden = () => {
     modalElement.removeEventListener('hidden.bs.modal', handleHidden)
-    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove())
-    document.body.classList.remove('modal-open')
-    document.body.style.removeProperty('overflow')
-    document.body.style.removeProperty('padding-right')
+    cleanupModal()
     router.push(`/author/${authorId}`)
   }
   
@@ -1918,10 +1939,7 @@ const navigateToAuthor = (authorId) => {
   
   setTimeout(() => {
     modalElement.removeEventListener('hidden.bs.modal', handleHidden)
-    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove())
-    document.body.classList.remove('modal-open')
-    document.body.style.removeProperty('overflow')
-    document.body.style.removeProperty('padding-right')
+    cleanupModal()
     router.push(`/author/${authorId}`)
   }, 500)
 }
@@ -1941,13 +1959,12 @@ watch(
 
 // 监听留言列表，初始化拖拽
 watch(
-  () => commentList.value,
+  () => commentList.value?.length,
   () => {
     nextTick(() => {
       initSortable()
     })
-  },
-  { deep: true }
+  }
 )
 
 // 挂载

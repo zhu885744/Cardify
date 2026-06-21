@@ -188,6 +188,7 @@ const config = ref({
 
 // 响应式变量
 const showBackToTop = ref(false)
+let scrollTicking = false
 
 // 公告相关
 const noticeList = ref([])
@@ -295,8 +296,7 @@ watch(
     if (newConfig) {
       config.value = newConfig
     }
-  },
-  { deep: true }
+  }
 )
 
 // 初始化弹窗
@@ -315,9 +315,15 @@ const initModals = () => {
   }
 }
 
-// 监听滚动事件
+// 监听滚动事件（节流）
 const handleScroll = () => {
-  showBackToTop.value = window.scrollY > 300
+  if (!scrollTicking) {
+    requestAnimationFrame(() => {
+      showBackToTop.value = window.scrollY > 300
+      scrollTicking = false
+    })
+    scrollTicking = true
+  }
 }
 
 onMounted(() => {

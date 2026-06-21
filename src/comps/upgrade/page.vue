@@ -4,7 +4,7 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { toast } from '@/utils/app'
 
 // 使用普通对象，确保不是响应式的
@@ -46,6 +46,10 @@ onMounted(async () => {
     if (import.meta.env.PROD) {
         startPolling()
     }
+})
+
+onUnmounted(() => {
+    stopPolling()
 })
 
 // 开始轮询

@@ -54,6 +54,8 @@
                 :src="user.avatar || defaultAvatar" 
                 :alt="user.nickname"
                 class="rounded-circle user-avatar"
+                loading="lazy"
+                decoding="async"
                 @error="handleAvatarError"
               >
               <!-- 在线状态 -->
@@ -114,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { request } from '@/utils/network'
 import defaultAvatar from '@/assets/img/avatar.png'
@@ -135,6 +137,9 @@ const currentPage = ref(1)
 const pageSize = ref(12)
 const totalCount = ref(0)
 const levelInfo = ref(null)
+
+// 缓存排序后的等级数据，避免在模板 v-for 中每次调用都重新排序
+const sortedLevels = shallowRef([])
 
 // 计算属性
 const totalPages = computed(() => {
@@ -174,15 +179,13 @@ const visiblePages = computed(() => {
 
 // 获取用户等级
 const getUserLevel = (user) => {
-  if (!levelInfo.value?.data?.data) {
+  if (!sortedLevels.value.length) {
     return Math.floor((user.exp || 0) / 100)
   }
   
-  const levelData = levelInfo.value.data.data
   const exp = user.exp || 0
   
-  const sortedLevels = [...levelData].sort((a, b) => b.exp - a.exp)
-  for (const level of sortedLevels) {
+  for (const level of sortedLevels.value) {
     if (exp >= level.exp) {
       return level.value
     }
@@ -193,15 +196,13 @@ const getUserLevel = (user) => {
 
 // 获取等级名称
 const getLevelName = (user) => {
-  if (!levelInfo.value?.data?.data) {
+  if (!sortedLevels.value.length) {
     return ''
   }
   
-  const levelData = levelInfo.value.data.data
   const exp = user.exp || 0
   
-  const sortedLevels = [...levelData].sort((a, b) => b.exp - a.exp)
-  for (const level of sortedLevels) {
+  for (const level of sortedLevels.value) {
     if (exp >= level.exp) {
       return level.name
     }
@@ -284,6 +285,7 @@ const fetchLevelInfo = async () => {
     const cachedData = cache.get(cacheKey)
     if (cachedData) {
       levelInfo.value = cachedData
+      updateSortedLevels()
       return
     }
     
@@ -295,10 +297,17 @@ const fetchLevelInfo = async () => {
     if (res.code === 200) {
       levelInfo.value = res
       cache.set(cacheKey, res, cacheExpire)
+      updateSortedLevels()
     }
   } catch (err) {
     levelInfo.value = null
   }
+}
+
+// 更新排序后的等级数据
+const updateSortedLevels = () => {
+  const data = levelInfo.value?.data?.data
+  sortedLevels.value = data ? [...data].sort((a, b) => b.exp - a.exp) : []
 }
 
 // 组件挂载
