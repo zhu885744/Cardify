@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import utils from '@/utils/utils'
 import router from '@/router/index.js'
 import { request, cache, uploadImage } from '@/utils/network'
+import { useCommStore } from '@/store/comm'
 
 const DEV = import.meta.env.DEV
 
@@ -585,7 +586,12 @@ const toast = new ToastManager()
 const formatDate = (date, format = 'YYYY-MM-DD HH:mm:ss') => {
   if (!date) return ''
   
-  const d = new Date(date)
+  let timestamp = parseInt(date)
+  if (!isNaN(timestamp) && timestamp < 10000000000) {
+    timestamp *= 1000
+  }
+  
+  const d = new Date(timestamp)
   if (isNaN(d.getTime())) return ''
   
   const year = d.getFullYear()
@@ -769,7 +775,10 @@ const usePageTitle = () => {
   const title = useVueUseTitle('')
   
   const baseTitle = computed(() => {
-    return getConfigSync('title') || 'Xiao-INIS'
+    // 优先从 store.siteInfo 读取站点标题，兜底使用配置或默认值
+    const store = useCommStore()
+    const storeTitle = store?.siteInfo?.title
+    return storeTitle || getConfigSync('title') || 'Xiao-INIS'
   })
   
   const fullTitle = computed(() => {
@@ -814,7 +823,10 @@ const usePageTitle = () => {
 const setupRouteTitle = (router) => {
   router.beforeEach((to, from, next) => {
     if (to.path !== from.path) {
-      const siteTitle = getConfigSync('title') || 'Xiao-INIS'
+      // 优先从 store.siteInfo 读取站点标题，兜底使用配置或默认值
+      const store = useCommStore()
+      const storeTitle = store?.siteInfo?.title
+      const siteTitle = storeTitle || getConfigSync('title') || 'Xiao-INIS'
       const pageTitle = to.meta.title || to.name || '未知页面'
       document.title = `${pageTitle} - ${siteTitle}`
     }

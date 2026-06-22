@@ -172,30 +172,18 @@
               class="card article-item-card shadow-sm mb-3 overflow-hidden"
               @click="goToArticle(article.id)"
             >
-              <div class="row g-0">
-                <!-- 文章封面 -->
-                <div class="col-md-4">
-                  <img 
-                    :src="article.covers || defaultCover" 
-                    :alt="article.title"
-                    class="img-fluid w-100 h-100"
-                    style="object-fit: cover; min-height: 160px;"
-                  >
+              <div class="card-body d-flex flex-column" style="height: 120px;">
+                <div class="d-flex align-items-start justify-content-between mb-2">
+                  <h5 class="card-title fw-bold mb-0">{{ article.title }}</h5>
+                  <span class="badge bg-light text-dark text-xs flex-shrink-0">
+                    {{ article?.result?.group?.[0]?.name || '未分类' }}
+                  </span>
                 </div>
-                <!-- 文章内容 -->
-                <div class="col-md-8">
-                  <div class="card-body d-flex flex-column h-100">
-                    <h5 class="card-title fw-bold text-truncate mb-2">{{ article.title }}</h5>
-                    <p class="card-text text-body-secondary small flex-grow-1">
-                      {{ article.abstract || '暂无摘要' }}
-                    </p>
-                    <div class="d-flex justify-content-between align-items-center text-secondary small mt-auto">
-                      <span class="badge bg-light text-dark">
-                        {{ article?.result?.group?.[0]?.name || '未分类' }}
-                      </span>
-                      <span>{{ formatters.formatDate(article.publish_time) }}</span>
-                    </div>
-                  </div>
+                <p class="card-text text-body-secondary small flex-grow-1">
+                  {{ article.abstract || '暂无摘要' }}
+                </p>
+                <div class="text-secondary small mt-auto">
+                  {{ formatters.formatDate(article.publish_time) }}
                 </div>
               </div>
             </div>

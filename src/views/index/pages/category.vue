@@ -288,6 +288,26 @@ const limit = ref(10)                   // 每页条数
 const articleCount = ref(0)             // 分类下文章总数
 const hasImageMode = ref(true)          // 显示模式：true=有图模式，false=列表模式
 
+// 从后端API获取显示模式设置
+const loadDisplayMode = async () => {
+  try {
+    // 优先从 store 读取（siteInfo 已经在应用初始化时缓存过了）
+    if (store.comm.siteInfo?.display_mode !== undefined) {
+      hasImageMode.value = store.comm.siteInfo.display_mode !== false
+      return
+    }
+    // 如果 store 没有，再请求 API（兜底）
+    const response = await request.get('/api/config/one', { key: 'cardify_functions' })
+    if (response.code === 200 && response.data) {
+      const config = response.data.json || {}
+      hasImageMode.value = config.display_mode !== false
+    }
+  } catch (error) {
+    console.error('读取显示模式设置失败:', error)
+    hasImageMode.value = true
+  }
+}
+
 // 计算总页数
 const pageCount = computed(() => {
   return Math.ceil(total.value / limit.value)
@@ -441,6 +461,7 @@ const changePage = (page) => {
  * 初始化页面
  */
 const initPage = async (categoryParam) => {
+  loadDisplayMode()
   if (checkCategoryParam(categoryParam)) {
     await getCategoryDetail(categoryParam)
     if (categoryInfo.value.id) {

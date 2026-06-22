@@ -15,7 +15,9 @@ import { useCommStore } from '@/store/comm'
 const setupRouteTitle = (router) => {
   router.beforeEach((to, from, next) => {
     if (to.path !== from.path) {
-      const siteTitle = import.meta.env.VITE_TITLE || 'Xiao-INIS'
+      // 优先从 store.siteInfo 读取站点标题，兜底使用 .env 配置
+      const store = useCommStore()
+      const siteTitle = store.siteInfo?.title || import.meta.env.VITE_TITLE || 'Xiao-INIS'
       const pageTitle = to.meta.title || to.name || '未知页面'
       document.title = `${pageTitle} - ${siteTitle}`
     }
@@ -55,13 +57,6 @@ const routes = [
     component: () => import('@/views/index/pages/index.vue'),
     meta: { title: '首页', requiresAuth: false, keepAlive: true }
   },
-  {
-    path: '/search',
-    name: '搜索页面',
-    component: () => import('@/views/index/pages/search.vue'),
-    meta: { title: '搜索', requiresAuth: false }
-  },
-
   // ========== 用户相关路由 ==========
   {
     path: '/user',

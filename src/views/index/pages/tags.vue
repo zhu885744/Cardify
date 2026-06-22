@@ -366,6 +366,26 @@ const totalTags = ref(0)                 // 标签总数
 // 显示模式：true = 有图模式，false = 列表模式
 const hasImageMode = ref(true)
 
+// 从后端API获取显示模式设置
+const loadDisplayMode = async () => {
+  try {
+    // 优先从 store 读取（siteInfo 已经在应用初始化时缓存过了）
+    if (store.comm.siteInfo?.display_mode !== undefined) {
+      hasImageMode.value = store.comm.siteInfo.display_mode !== false
+      return
+    }
+    // 如果 store 没有，再请求 API（兜底）
+    const response = await request.get('/api/config/one', { key: 'cardify_functions' })
+    if (response.code === 200 && response.data) {
+      const config = response.data.json || {}
+      hasImageMode.value = config.display_mode !== false
+    }
+  } catch (error) {
+    console.error('读取显示模式设置失败:', error)
+    hasImageMode.value = true
+  }
+}
+
 // 计算文章总页数
 const pageCount = computed(() => {
   return Math.ceil(total.value / limit.value)
@@ -558,6 +578,8 @@ const loadTagFromProps = async (tagId) => {
 const initPage = async () => {
   loading.value = true
   error.value = false
+
+  loadDisplayMode()
 
   const tagIdFromRoute = route.params.id
 
