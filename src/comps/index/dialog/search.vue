@@ -198,7 +198,7 @@ const scopes = [
 ]
 
 const hotSearches = [
-  '随记', '旅行', 'JavaScript', 'TypeScript', 'Node.js',
+  '随记', '旅行', '博客', 'vue', 'Node.js',
   '前端开发', '后端开发', '算法', '数据库', '架构'
 ]
 
@@ -842,23 +842,29 @@ defineExpose({ show, hide })
   height: 16px;
   border-radius: 50%;
   border: none;
-  background: rgba(0, 0, 0, 0.2);
-  color: inherit;
-  font-size: 0.625rem;
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--bs-secondary-color);
+  font-size: 0.5625rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.search-tag:hover {
+  background: var(--bs-primary);
+  color: white;
 }
 
 .search-tag:hover .tag-remove {
-  opacity: 1;
+  background: rgba(0, 0, 0, 0.25);
+  color: white;
 }
 
 .tag-remove:hover {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .results-list {
