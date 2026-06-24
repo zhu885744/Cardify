@@ -360,9 +360,7 @@ axiosInstance.interceptors.request.use(
       }
 
       axiosConfig.headers['X-CSRF-Token'] = utils.get.cookie('csrf_token') || ''
-      
-      axiosConfig.headers['X-App-Version'] = '1.0.0'
-      
+
       if (!axiosConfig.url || !axiosConfig.url.startsWith('/api/')) {
         console.warn(`[Security] 请求路径不合法: ${axiosConfig.url}`)
       }

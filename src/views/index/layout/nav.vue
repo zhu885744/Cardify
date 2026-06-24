@@ -102,8 +102,8 @@
             class="btn btn-outline-secondary me-2" 
             type="button" 
             @click="doSign"
-            :disabled="signLoading || hasSigned"
-            :title="hasSigned ? '今日已签到' : '每日签到'"
+            :disabled="signLoading"
+            :title="hasSigned ? '查看签到记录' : '每日签到'"
           >
             <i v-if="!signLoading" :class="hasSigned ? 'bi bi-check-circle' : 'bi bi-calendar-check'"></i>     
           </button>
@@ -298,11 +298,11 @@
             class="btn btn-secondary w-100 mb-3" 
             type="button" 
             @click="doSign"
-            :disabled="signLoading || hasSigned"
+            :disabled="signLoading"
           >
             <i v-if="!signLoading" :class="hasSigned ? 'bi bi-check-circle' : 'bi bi-calendar-check'" class="me-1"></i>
             <i v-else class="bi bi-arrow-clockwise animate-spin me-1"></i>
-            {{ hasSigned ? '今日已签到' : '每日签到' }}
+            {{ hasSigned ? '签到记录' : '每日签到' }}
             <span v-if="signDays > 0" class="ms-1 text-muted">({{ signDays }}天)</span>
           </button>
           <div class="d-grid grid-cols-2 gap-3">
@@ -346,6 +346,9 @@
 
   <!-- 引入认证对话框组件 -->
   <DialogAuth ref="authDialog" @finish="method.onAuthFinish" />
+
+  <!-- 引入签到对话框组件 -->
+  <DialogCheckin ref="checkinDialog" />
 </template>
 
 <script setup>
@@ -362,6 +365,7 @@ import { STORAGE_KEYS } from '@/constants'
 // 引入对话框组件
 import DialogAuth from '@/comps/index/dialog/auth.vue'
 import DialogSearch from '@/comps/index/dialog/search.vue'
+import DialogCheckin from '@/comps/index/dialog/checkin.vue'
 
 // 初始化router
 const router = useRouter()
@@ -381,6 +385,7 @@ const signLoading = ref(false)
 // 组件引用
 const authDialog = ref(null)
 const searchDialog = ref(null)
+const checkinDialog = ref(null)
 
 // 存储
 const store = {
@@ -806,43 +811,27 @@ const checkSignStatus = async () => {
   if (!store.comm.login.finish || !store.comm.login.user) return
   
   try {
-    const response = await request.get('/api/exp/check-in/status')
+    const response = await request.get('/api/exp/check-in')
     if (response.code === 200) {
-      hasSigned.value = response.data?.hasSigned || false
-      signDays.value = response.data?.signDays || 0
+      hasSigned.value = response.data?.checked || false
+      signDays.value = response.data?.streak_days || response.data?.current_streak || 0
     }
   } catch (error) {
-    // console.error('获取签到状态失败：', error)
+    // 静默处理
   }
 }
 
-const doSign = async () => {
-  if (!store.comm.login.finish || !store.comm.login.user) {
-    toast.warning('请先登录')
-    return
-  }
+const doSign = () => {
+  closeSidebar()
   
-  if (hasSigned.value) {
-    toast.info('今日已签到')
-    return
-  }
-  
-  try {
-    signLoading.value = true
-    const response = await request.post('/api/exp/check-in')
-    
-    if (response.code === 200) {
-      hasSigned.value = true
-      signDays.value += 1
-      toast.success(`签到成功！获得 ${response.data?.exp || 10} 点经验`)
-    } else {
-      toast.error(response.msg || '签到失败')
-    }
-  } catch (error) {
-    // console.error('签到失败：', error)
-    toast.error('网络异常，签到失败')
-  } finally {
-    signLoading.value = false
+  if (checkinDialog.value && checkinDialog.value.show) {
+    checkinDialog.value.show()
+  } else {
+    setTimeout(() => {
+      if (checkinDialog.value && checkinDialog.value.show) {
+        checkinDialog.value.show()
+      }
+    }, 100)
   }
 }
 
