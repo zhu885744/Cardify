@@ -214,7 +214,7 @@ const performCheckin = async () => {
     const { code, data, msg } = await request.post('/api/exp/check-in')
 
     if (code === 200 && data) {
-      toast.success(`签到成功！获得 ${data.exp} 经验值`)
+      toast.success(`签到成功！获得 ${data.value} 经验值`)
     } else if (code === 202) {
       toast.info(msg || '今日已签到')
     } else {
