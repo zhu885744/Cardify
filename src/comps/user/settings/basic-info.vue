@@ -1,6 +1,59 @@
 <!-- 基础信息设置组件 -->
 <template>
   <div class="basic-info-settings">
+    <!-- 图片裁切弹窗 -->
+    <div 
+      v-if="showCropperModal" 
+      class="modal fade show"
+      style="display: block;"
+      @click.self="closeCropperModal"
+    >
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">裁切头像</h5>
+            <button type="button" class="btn-close" @click="closeCropperModal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="cropper-wrapper">
+              <img ref="cropperImage" :src="cropImageSrc" alt="裁切图片">
+            </div>
+            <div class="cropper-toolbar mt-3">
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="rotateImage(-90)">
+                <i class="bi bi-arrow-counterclockwise"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="rotateImage(90)">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="resetCropper">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>重置
+              </button>
+              <div class="cropper-zoom-controls ms-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" @click="zoomImage(-0.1)">
+                  <i class="bi bi-zoom-out"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" @click="zoomImage(0.1)">
+                  <i class="bi bi-zoom-in"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" @click="closeCropperModal">取消</button>
+            <button 
+              type="button" 
+              class="btn btn-primary" 
+              @click="uploadCroppedImage"
+              :disabled="uploading"
+            >
+              <i v-if="uploading" class="bi bi-arrow-clockwise animate-spin me-1"></i>
+              {{ uploading ? '上传中...' : '上传头像' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="loading" class="row">
       <div class="col-md-4 mb-4">
         <div class="card">
@@ -239,11 +292,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
-import { request, uploadImage } from '@/utils/network'
+import { ref, reactive, onMounted, watch, nextTick } from 'vue'
+import { request } from '@/utils/network'
 import { toast } from '@/utils/app'
 import { useCommStore } from '@/store/comm'
 import defaultAvatar from '@/assets/img/avatar.png'
+import Cropper from 'cropperjs'
+import 'cropperjs/dist/cropper.css'
 
 const store = useCommStore()
 const loading = ref(false)
@@ -251,6 +306,13 @@ const saving = ref(false)
 const uploading = ref(false)
 const showAvatarUrlInput = ref(false)
 const customAvatarUrl = ref('')
+
+// 裁切相关
+const showCropperModal = ref(false)
+const cropperImage = ref(null)
+const cropImageSrc = ref('')
+const selectedFile = ref(null)
+let cropperInstance = null
 
 const formData = reactive({
   id: '',
@@ -269,13 +331,153 @@ const originalData = reactive({})
 
 const handleUploadAvatar = () => {
   if (uploading.value) return
-  uploading.value = true
 
-  uploadImage((path) => {
-    formData.avatar = path
-    uploading.value = false
-    toast.success('头像上传成功，请点击"保存修改"完成更新')
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+
+  input.addEventListener('change', async () => {
+    if (!input.files || input.files.length === 0) {
+      return
+    }
+
+    const file = input.files[0]
+    
+    // 验证文件大小（最大 10MB）
+    if (file.size > 10 * 1024 * 1024) {
+      toast.warning('图片大小不能超过 10MB')
+      return
+    }
+
+    // 验证文件类型
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+      toast.warning('请选择 JPG、PNG、GIF 或 WebP 格式的图片')
+      return
+    }
+
+    selectedFile.value = file
+    
+    // 读取图片并显示裁切弹窗
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      cropImageSrc.value = e.target.result
+      showCropperModal.value = true
+      
+      // 固定 body 防止滚动
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+      document.body.style.overflow = 'hidden'
+      document.body.style.paddingRight = scrollbarWidth > 0 ? `${scrollbarWidth}px` : ''
+      
+      await nextTick()
+      
+      // 初始化裁切器
+      if (cropperImage.value) {
+        cropperInstance = new Cropper(cropperImage.value, {
+          aspectRatio: 1,
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 0.8,
+          restore: false,
+          guides: true,
+          center: true,
+          highlight: true,
+          cropBoxMovable: true,
+          cropBoxResizable: true,
+          toggleDragModeOnDblclick: true,
+          minContainerWidth: 400,
+          minContainerHeight: 400,
+          minCropBoxWidth: 100,
+          minCropBoxHeight: 100,
+        })
+      }
+    }
+    reader.readAsDataURL(file)
+    
+    input.value = ''
   })
+
+  input.click()
+}
+
+const rotateImage = (degree) => {
+  if (cropperInstance) {
+    cropperInstance.rotate(degree)
+  }
+}
+
+const zoomImage = (ratio) => {
+  if (cropperInstance) {
+    cropperInstance.zoom(ratio)
+  }
+}
+
+const resetCropper = () => {
+  if (cropperInstance) {
+    cropperInstance.reset()
+  }
+}
+
+const closeCropperModal = () => {
+  showCropperModal.value = false
+  if (cropperInstance) {
+    cropperInstance.destroy()
+    cropperInstance = null
+  }
+  cropImageSrc.value = ''
+  selectedFile.value = null
+  
+  // 移除 body 固定
+  document.body.style.overflow = ''
+  document.body.style.paddingRight = ''
+}
+
+const uploadCroppedImage = async () => {
+  if (!cropperInstance || uploading.value) return
+  
+  uploading.value = true
+  
+  try {
+    // 获取裁切后的图片
+    const canvas = cropperInstance.getCroppedCanvas({
+      width: 200,
+      height: 200,
+      minWidth: 100,
+      minHeight: 100,
+      maxWidth: 4096,
+      maxHeight: 4096,
+      fillColor: '#fff',
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
+    })
+    
+    // 将 canvas 转换为 Blob
+    const blob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.9)
+    })
+    
+    // 创建 FormData 上传
+    const params = new FormData()
+    params.append('file', blob, 'avatar.jpg')
+    
+    const { code, msg, data } = await request.post('/api/file/upload', params, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    if (code === 200) {
+      formData.avatar = data.path
+      toast.success('头像上传成功，请点击"保存修改"完成更新')
+      closeCropperModal()
+    } else {
+      toast.error(msg || '上传失败')
+    }
+  } catch (error) {
+    console.error('上传失败:', error)
+    toast.error('上传失败，请稍后重试')
+  } finally {
+    uploading.value = false
+  }
 }
 
 const applyCustomAvatar = () => {
@@ -491,6 +693,68 @@ watch(
 
   .d-flex.gap-2 .btn {
     width: 100%;
+  }
+}
+
+/* 裁切器样式 */
+.cropper-wrapper {
+  width: 100%;
+  height: 350px;
+  background: var(--bs-tertiary-bg);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cropper-wrapper img {
+  display: block;
+  max-width: 100%;
+}
+
+.cropper-toolbar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cropper-zoom-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cropper-wrapper .cropper-crop-box {
+  border: 2px solid #39f;
+}
+
+.cropper-wrapper .cropper-view-box {
+  border-radius: 50%;
+}
+
+.cropper-wrapper .cropper-face {
+  background-color: transparent;
+}
+
+.cropper-wrapper .cropper-modal {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+@media (max-width: 576px) {
+  .cropper-wrapper {
+    height: 250px;
   }
 }
 </style>
