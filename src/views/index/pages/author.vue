@@ -64,6 +64,14 @@
                   <p class="text-body-secondary small mb-0">
                     {{ userInfo.description || '这个人很懒，什么都没有留下！' }}
                   </p>
+                  <a 
+                    :href="userInfo?.json?.website?.url || '#'" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    class="text-decoration-none"
+                  >
+                    {{ userInfo?.json?.website?.url }}
+                  </a>
                 </div>
               </div>
 
@@ -125,7 +133,7 @@
                   <div class="text-body-secondary small">获赞</div>
                 </div>
                 <div class="col border-start">
-                  <div class="fw-bold fs-4 text-primary">{{ userStats.totalExp }}</div>
+                  <div class="fw-bold fs-4 text-body">{{ userStats.totalExp }}</div>
                   <div class="text-body-secondary small">经验值</div>
                 </div>
               </div>
@@ -149,7 +157,7 @@
                   <span class="badge bg-secondary">{{ userStats.articleCount }}</span>
                 </button>
               </li>
-              <li class="nav-item">
+              <!-- <li class="nav-item">
                 <button 
                   class="nav-link d-flex align-items-center gap-2" 
                   :class="{ 'active': activeTab === 'collections' }"
@@ -170,7 +178,7 @@
                   <span>点赞</span>
                   <span class="badge bg-secondary">{{ likeArticles.length }}</span>
                 </button>
-              </li>
+              </li> -->
               <li class="nav-item">
                 <button 
                   class="nav-link d-flex align-items-center gap-2" 

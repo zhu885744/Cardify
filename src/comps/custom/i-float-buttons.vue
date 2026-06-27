@@ -70,7 +70,7 @@
       <div class="modal-content border-0 shadow-lg animate-fade">
         <div class="modal-header">
           <h5 class="modal-title d-flex align-items-center">
-            <i class="bi bi-megaphone-fill me-2"></i>系统公告
+            <i class="bi bi-megaphone-fill me-2"></i>公告
           </h5>
           <button 
             type="button" 
