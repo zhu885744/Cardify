@@ -98,7 +98,12 @@
             <div class="d-flex align-items-center gap-2 mb-1">
               <i class="bi bi-c-circle text-primary fs-6"></i>
               <span class="text-muted fs-6">版权属于：</span>
-              <span class="fs-6">{{ articleInfo.result?.author?.nickname || '匿名' }}</span>
+              <router-link 
+                :to="`/author/${articleInfo.result?.author?.id}`" 
+                class="fs-6 text-primary text-decoration-none hover-underline"
+              >
+                {{ articleInfo.result?.author?.nickname || '匿名' }}
+              </router-link>
             </div>
 
             <!-- 文章标签信息 -->

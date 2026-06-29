@@ -101,8 +101,8 @@
                   :class="{ top: index < 3 }"
                 >
                   <div class="rank-num" :class="`rank-${item.rank}`">
-                    <span v-if="index < 3">
-                      <i class="bi" :class="getRankIcon(index + 1)"></i>
+                    <span v-if="item.rank <= 3">
+                      <i class="bi" :class="getRankIcon(item.rank)"></i>
                     </span>
                     <span v-else>{{ item.rank }}</span>
                   </div>
@@ -164,7 +164,7 @@ const state = reactive({
 const getRankIcon = (rank) => {
   const icons = {
     1: 'bi-trophy-fill',
-    2: 'bi-medal-fill',
+    2: 'bi-award-fill',
     3: 'bi-award-fill',
   }
   return icons[rank] || 'bi-circle'
