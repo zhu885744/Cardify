@@ -57,7 +57,10 @@
                 <div class="flex-grow-1 pb-1">
                   <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
                     <h3 class="fw-bold mb-0">{{ userInfo.nickname }}</h3>
-                    <span v-for="group in userGroups" :key="group.name" class="badge bg-success">
+                    <span class="badge bg-primary-subtle text-primary">
+                      UID: {{ userId }}
+                    </span>
+                    <span v-for="group in userGroups" :key="group.name" class="badge bg-success-subtle text-success">
                       {{ group.name }}
                     </span>
                   </div>
