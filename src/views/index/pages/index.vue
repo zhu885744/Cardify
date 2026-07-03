@@ -1,4 +1,116 @@
 <template>
+  <!-- 快速发文章模块 -->
+  <div v-if="isLogin" class="mt-2 card shadow-sm rounded">
+    <div class="card-body p-2">
+      <div 
+        @click="toggleQuickEditor" 
+        class="w-full d-flex align-items-center justify-content-between py-2 px-3 rounded-lg hover-bg-secondary transition-colors"
+      >
+        <span class="d-flex align-items-center gap-2">
+          <i class="bi bi-pencil-square text-secondary"></i>
+          <span class="text-sm text-body">快速发布文章</span>
+        </span>
+        <i class="bi bi-chevron-down transition-transform" :class="{ 'rotate-180': showQuickEditor }"></i>
+      </div>
+      <div v-if="showQuickEditor" class="mt-3 pt-3 border-t">
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+          <strong>温馨提示：</strong> <br>
+          由于一些合规原因，通过快速发布文章功能发布的文章发布后无法立即显示，待系统审核后将自动显示。
+        </div>
+        <input 
+          v-model="formData.title" 
+          type="text" 
+          placeholder="请输入文章标题"
+          class="form-control form-control-sm mb-2"
+          maxlength="100"
+        />
+        <i-md-editor 
+          v-model="formData.content"
+          placeholder="写点什么吧..."
+          @update:model-value="handleEditorInput"
+        />
+        <!-- 文章设置行：分类 / 标签 / 发布时间 -->
+        <div class="row g-2 mt-2">
+          <div class="col-md-4">
+            <select v-model="formData.group" class="form-select form-select-sm">
+              <option value="">选择分类</option>
+              <option v-for="g in articleGroups" :key="g.id" :value="g.id">{{ g.name }}</option>
+            </select>
+          </div>
+          <div class="col-md-5">
+            <div class="d-flex align-items-center gap-1 position-relative">
+              <input
+                v-model="newTag"
+                type="text"
+                class="form-control form-control-sm"
+                placeholder="输入标签名选择或新建"
+                @keyup.enter="addTag"
+                @focus="showTagDropdown = true"
+                @blur="hideTagDropdown"
+              />
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="addTag">
+                <i class="bi bi-plus"></i>
+              </button>
+              <!-- 已有标签下拉 -->
+              <div v-show="showTagDropdown && filteredExistingTags.length > 0" class="tag-suggest-dropdown">
+                <div 
+                  v-for="tag in filteredExistingTags" 
+                  :key="tag"
+                  class="tag-suggest-item"
+                  @mousedown.prevent="selectExistingTag(tag)"
+                >
+                  {{ tag.name }}
+                </div>
+              </div>
+            </div>
+            <div v-if="formData.tags.length > 0" class="d-flex flex-wrap gap-1 mt-1">
+              <span
+                v-for="(tag, index) in formData.tags"
+                :key="index"
+                class="badge bg-secondary-subtle text-secondary d-flex align-items-center gap-1"
+              >
+                {{ tag.name }}
+                <i class="bi bi-x cursor-pointer" @click="removeTag(index)"></i>
+              </span>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <input 
+              v-model="quickArticlePublishTime" 
+              type="datetime-local" 
+              class="form-control form-control-sm"
+            />
+          </div>
+        </div>
+        <div class="mt-2 d-flex justify-end gap-2">
+          <button 
+            @click="toggleQuickEditor" 
+            class="btn btn-secondary btn-sm"
+          >
+            取消
+          </button>
+          <button 
+            type="button"
+            class="btn btn-outline-primary btn-sm"
+            @click="saveDraft"
+            :disabled="isPublishing"
+          >
+            <i class="bi bi-save me-1"></i>
+            {{ isPublishing ? '保存中...' : '保存草稿' }}
+          </button>
+          <button 
+            @click="publishQuickArticle" 
+            class="btn btn-primary btn-sm"
+            :disabled="isPublishing"
+          >
+            <i class="bi bi-send me-1"></i>
+            {{ isPublishing ? '发布中...' : '发布' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 轮播图 -->
   <div v-if="banners.length > 0 || bannersLoading" class="mt-2 rounded">
     <!-- 轮播图加载中 -->
@@ -183,13 +295,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { request } from '@/utils/network'
-import { usePageTitle } from '@/utils/app'
+import { usePageTitle, toast } from '@/utils/app'
 import { cache } from '@/utils/network'
 import { useCommStore } from '@/store/comm'
 import { useBannerStore } from '@/store/banner'
+import iMdEditor from '@/comps/custom/i-md-editor.vue'
 
 // 使用页面标题管理
 const { setDynamicTitle } = usePageTitle();
@@ -211,11 +324,39 @@ const isRefreshing = ref(false)
 const showRefreshHint = ref(false)
 
 const articleList = ref([])
-const loading = ref(false)
-const currentPage = ref(1)
-const limit = ref(10)
-const total = ref(0)
-const order = ref('top desc, create_time desc')
+  const loading = ref(false)
+  const currentPage = ref(1)
+  const limit = ref(10)
+  const total = ref(0)
+  const order = ref('top desc, create_time desc')
+
+  // 快速发文章相关
+  const showQuickEditor = ref(false)
+  const quickArticlePublishTime = ref('')
+  const isPublishing = ref(false)
+  const articleGroups = ref([])
+  const newTag = ref('')
+  const showTagDropdown = ref(false)
+  const allTags = ref([])
+
+  const formData = reactive({
+    title: '',
+    content: '',
+    group: '',
+    tags: [],
+    publish_time: ''
+  })
+
+  // 过滤已有标签：排除已选的、匹配输入的
+  const filteredExistingTags = computed(() => {
+    const search = newTag.value.trim().toLowerCase()
+    const selectedIds = new Set(formData.tags.map(t => t.id))
+    return allTags.value.filter(t => 
+      !selectedIds.has(t.id) && t.name.toLowerCase().includes(search)
+    )
+  })
+
+const isLogin = computed(() => commStore.login.finish && Object.keys(commStore.login.user).length > 0)
 
 // 显示模式：true为有图模式（网格布局），false为列表模式（列表布局）
 const hasImageMode = ref(true)
@@ -629,7 +770,7 @@ const handleRefresh = async () => {
   
   // 清除首页缓存
   for (let i = 1; i <= 5; i++) {
-    cache.remove(`index_articles_page_${i}_limit_${limit.value}`)
+    cache.del(`index_articles_page_${i}_limit_${limit.value}`)
   }
   
   await getArticleList(1, true)
@@ -641,6 +782,210 @@ const handleRefresh = async () => {
 
 const toArticleDetail = (id) => {
   router.push(`/archives/${id}`) 
+}
+
+const toggleQuickEditor = () => {
+  showQuickEditor.value = !showQuickEditor.value
+  if (!showQuickEditor.value) {
+    formData.title = ''
+    formData.content = ''
+    formData.group = ''
+    formData.tags = []
+    formData.publish_time = ''
+    quickArticlePublishTime.value = ''
+  } else {
+    loadArticleGroups()
+    loadTags()
+  }
+}
+
+const handleEditorInput = (value) => {
+  formData.content = value
+}
+
+const addTag = async () => {
+  const name = newTag.value.trim()
+  if (!name) return
+
+  if (formData.tags.length >= 5) {
+    toast.warning('最多添加 5 个标签')
+    return
+  }
+
+  // 检查是否已存在同名标签
+  if (formData.tags.find(t => t.name.toLowerCase() === name.toLowerCase())) {
+    newTag.value = ''
+    return
+  }
+
+  // 先查已有标签
+  const existing = allTags.value.find(t => t.name.toLowerCase() === name.toLowerCase())
+  if (existing) {
+    formData.tags.push({ id: existing.id, name: existing.name })
+    newTag.value = ''
+    showTagDropdown.value = false
+    return
+  }
+
+  // 创建新标签
+  try {
+    const res = await request.post('/api/tags/create', { name })
+    if (res.code === 200 || res.code === 201) {
+      const newId = res.data?.id || res.data
+      const tagObj = { id: newId, name }
+      allTags.value.push(tagObj)
+      formData.tags.push(tagObj)
+      newTag.value = ''
+      showTagDropdown.value = false
+    } else {
+      toast.warning('标签创建失败')
+    }
+  } catch (e) {
+    console.error('创建标签失败:', e)
+    toast.warning('标签创建失败')
+  }
+}
+
+const selectExistingTag = (tag) => {
+  if (formData.tags.length >= 5) {
+    toast.warning('最多添加 5 个标签')
+    return
+  }
+  if (!formData.tags.find(t => t.id === tag.id)) {
+    formData.tags.push({ id: tag.id, name: tag.name })
+  }
+  newTag.value = ''
+  showTagDropdown.value = false
+}
+
+const hideTagDropdown = () => {
+  // 延迟关闭，让 mousedown 事件先触发
+  setTimeout(() => { showTagDropdown.value = false }, 150)
+}
+
+const removeTag = (index) => {
+  formData.tags.splice(index, 1)
+}
+
+const loadArticleGroups = async () => {
+  if (articleGroups.value.length > 0) return
+  try {
+    const res = await request.get('/api/article-group/all', { page: 1, limit: 50 })
+    if (res.code === 200) {
+      articleGroups.value = res.data.data || []
+    }
+  } catch (e) {
+    console.error('加载分类失败:', e)
+  }
+}
+
+const loadTags = async () => {
+  if (allTags.value.length > 0) return
+  try {
+    const res = await request.get('/api/tags/all', { limit: 200 })
+    if (res.code === 200 && res.data?.data) {
+      allTags.value = res.data.data.map(t => ({ id: t.id, name: t.name }))
+    }
+  } catch (e) {
+    console.error('加载标签失败:', e)
+  }
+}
+
+const publishQuickArticle = async () => {
+  if (!isLogin.value) {
+    toast.warning('请先登录')
+    commStore.switchAuth('login', true)
+    return
+  }
+  
+  const title = formData.title.trim()
+  const content = formData.content.trim()
+  
+  if (!title) {
+    toast.warning('请输入文章标题')
+    return
+  }
+  
+  if (!content) {
+    toast.warning('请输入文章内容')
+    return
+  }
+
+  if (!formData.group) {
+    toast.warning('请选择分类')
+    return
+  }
+  
+  isPublishing.value = true
+  
+  try {
+    const payload = {
+      title,
+      content,
+      abstract: content.substring(0, 200),
+      group: parseInt(formData.group),
+      tags: formData.tags.length > 0 ? '|' + formData.tags.map(t => t.id).join('|') + '|' : '',
+      status: 1
+    }
+
+    // 发布时间
+    if (quickArticlePublishTime.value) {
+      payload.publish_time = Math.floor(new Date(quickArticlePublishTime.value).getTime() / 1000)
+    }
+    
+    const res = await request.post('/api/article/create', payload)
+    
+    if (res.code === 200) {
+      toast.success('发布成功')
+      toggleQuickEditor()
+      handleRefresh()
+    } else {
+      toast.error(res.msg || '发布失败')
+    }
+  } catch (error) {
+    toast.error('发布失败，请稍后重试')
+    console.error('发布文章失败:', error)
+  } finally {
+    isPublishing.value = false
+  }
+}
+
+const saveDraft = async () => {
+  if (!formData.title.trim() && !formData.content.trim()) {
+    toast.warning('请至少输入标题或内容')
+    return
+  }
+
+  isPublishing.value = true
+
+  try {
+    const payload = {
+      title: formData.title.trim() || '未命名草稿',
+      content: formData.content.trim(),
+      abstract: formData.content.trim().substring(0, 200),
+      group: formData.group ? parseInt(formData.group) : null,
+      tags: formData.tags.length > 0 ? '|' + formData.tags.map(t => t.id).join('|') + '|' : '',
+      status: 0
+    }
+
+    if (quickArticlePublishTime.value) {
+      payload.publish_time = Math.floor(new Date(quickArticlePublishTime.value).getTime() / 1000)
+    }
+
+    const res = await request.post('/api/article/create', payload)
+
+    if (res.code === 200) {
+      toast.success('草稿保存成功！')
+      toggleQuickEditor()
+    } else {
+      toast.error(res.msg || '保存失败')
+    }
+  } catch (error) {
+    console.error('保存草稿失败:', error)
+    toast.error('网络异常，保存失败')
+  } finally {
+    isPublishing.value = false
+  }
 }
 
 // 获取轮播图数据（带缓存）
@@ -1738,5 +2083,43 @@ img {
   .article-cover {
     background: linear-gradient(135deg, var(--bs-body-bg), var(--bs-secondary-bg));
   }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 标签建议下拉 */
+.tag-suggest-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  margin-top: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.tag-suggest-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--bs-body-color);
+  transition: background 0.15s;
+}
+
+.tag-suggest-item:hover {
+  background: var(--bs-primary-bg-subtle);
+  color: var(--bs-primary);
 }
 </style>

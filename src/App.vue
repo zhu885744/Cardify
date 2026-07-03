@@ -20,7 +20,6 @@ import upgradePage from '@/comps/upgrade/page.vue'
 import iNav from '@/views/index/layout/nav.vue'
 import iFooter from '@/views/index/layout/footer.vue'
 import iFloatButtons from '@/comps/custom/i-float-buttons.vue'
-
 import { useCommStore } from '@/store/comm'
 import { request } from '@/utils/network'
 

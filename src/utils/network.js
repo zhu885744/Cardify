@@ -365,6 +365,11 @@ axiosInstance.interceptors.request.use(
         console.warn(`[Security] 请求路径不合法: ${axiosConfig.url}`)
       }
 
+      // FormData 上传时删除 Content-Type，让浏览器自动设置 multipart/form-data 及 boundary
+      if (axiosConfig.data instanceof FormData) {
+        delete axiosConfig.headers['Content-Type']
+      }
+
     } catch (error) {
     }
 
