@@ -75,7 +75,7 @@
               </span>
               <span class="meta-item d-flex align-items-center">
                 <i class="bi bi-calendar-fill me-2"></i>
-                {{ formatTime(articleInfo.publish_time) }}
+                {{ format(articleInfo.publish_time) }}
               </span>
               <span class="meta-item d-flex align-items-center">
                 <i class="bi bi-chat-fill me-2"></i>
@@ -217,7 +217,7 @@
           <div class="d-flex justify-content-end">
             <span class="text-muted d-flex align-items-center">
               <i class="bi bi-clock-fill me-2"></i>
-              最后更新：{{ formatTime(articleInfo.update_time || articleInfo.last_update || articleInfo.publish_time || Date.now() / 1000) }}
+              最后更新：{{ format(articleInfo.update_time || articleInfo.last_update || articleInfo.publish_time || Date.now() / 1000) }}
             </span>
           </div>
         </div>
@@ -246,7 +246,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, shallowRef, markRaw } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { request } from '@/utils/network'
 import iMarkdown from '@/comps/custom/i-markdown.vue'
@@ -256,86 +256,78 @@ import utils from '@/utils/utils'
 import { cache } from '@/utils/network'
 import { usePageTitle, toast } from '@/utils/app'
 
-// 使用页面标题管理
-const { setDynamicTitle } = usePageTitle();
+const { setDynamicTitle } = usePageTitle()
 
-// 存储
-const store = {
-  comm: useCommStore()
-};
+const commStore = useCommStore()
 
-// 打赏相关
 const rewardEnabled = computed(() => {
-  return store.comm.siteInfo?.reward?.enabled || false;
-});
+  return commStore.siteInfo?.reward?.enabled || false
+})
 const rewardConfig = computed(() => {
-  return store.comm.siteInfo?.reward || {};
-});
+  return commStore.siteInfo?.reward || {}
+})
 
-// 路由参数获取文章ID
+const router = useRouter()
+const route = useRoute()
+
 const getCurrentArticleId = () => {
   return route.params.id
 }
 
-// 响应式状态：保留所有原有业务逻辑
 const loading = ref(true)
 const error = ref(false)
 const errorMsg = ref('')
-const articleInfo = ref({})
-// 评论相关响应式数据
-const staticCommentList = ref([])
+const articleInfo = shallowRef({})
+const staticCommentList = shallowRef([])
 const commentCount = ref(0)
 const isDarkMode = ref(false)
-// 评论分页相关
 const currentPage = ref(1)
 const pageSize = ref(10)
 const totalComments = ref(0)
 
-// 文章评论配置（从文章的json字段中提取）
-const articleCommentConfig = computed(() => {
+const parsedArticleJson = computed(() => {
   const jsonData = articleInfo.value.json
-  if (!jsonData) {
-    return { allow: null, show: null }
-  }
+  if (!jsonData) return null
   try {
-    const parsed = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
-    return {
-      allow: parsed?.comment?.allow ?? null,
-      show: parsed?.comment?.show ?? null
-    }
+    return typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
   } catch (e) {
-    console.error('解析文章评论配置失败:', e)
-    return { allow: null, show: null }
+    console.error('解析文章JSON配置失败:', e)
+    return null
   }
 })
 
-// 文章操作相关状态
+const articleCommentConfig = computed(() => {
+  const parsed = parsedArticleJson.value
+  if (!parsed) {
+    return markRaw({ allow: null, show: null })
+  }
+  return markRaw({
+    allow: parsed?.comment?.allow ?? null,
+    show: parsed?.comment?.show ?? null
+  })
+})
+
 const isLiked = ref(false)
 const isCollected = ref(false)
 const likeCount = ref(0)
 const shareCount = ref(0)
 const collectCount = ref(0)
-// 当前页面链接
 const currentUrl = ref('')
-const userActionsCache = new Map()
 const USER_ACTIONS_CACHE_KEY = 'article_user_actions'
-const USER_ACTIONS_CACHE_EXPIRE = 10
+const USER_ACTIONS_CACHE_EXPIRE = 30
 
-// 路由实例
-const router = useRouter()
-const route = useRoute()
+const isLogin = computed(() => commStore.login.finish && Object.keys(commStore.login.user).length > 0)
 
-/**
- * 时间格式化：使用utils.js中的timeToDate函数
- */
 const formatTime = (timestamp) => {
   if (!timestamp || timestamp === 0) return '未知时间'
   return utils.timeToDate(timestamp, 'Y-m-d')
 }
 
-/**
- * 文章ID合法性校验：复用原有逻辑
- */
+const format = (timestamp) => {
+  if (!timestamp || timestamp === 0) return '未知时间'
+  return utils.timeToDate(timestamp, 'Y-m-d')
+}
+
 const checkArticleId = (id) => {
   const idVal = String(id).trim()
   if (!idVal) {
@@ -350,51 +342,42 @@ const checkArticleId = (id) => {
   return true
 }
 
-/**
- * 请求文章详情：复用原有逻辑
- */
 const getArticleDetail = async (id) => {
   loading.value = true
   try {
-    // 缓存键
     const cacheKey = `article_detail_${id}`
-    const cacheExpire = 30 // 缓存30分钟
+    const cacheExpire = 60
     
-    // 尝试从缓存获取文章详情
     let cachedArticle = cache.get(cacheKey)
     
-    // 如果缓存不存在，从API获取
     if (!cachedArticle) {
       const queryParams = { id, cache: false }
       const res = await request.get('/api/article/one', queryParams)
 
       if (res.code === 200) {
         if (!res.data || Object.keys(res.data).length === 0) {
-            error.value = true
-            errorMsg.value = '未找到该文章，可能已被删除或ID错误'
-            setDynamicTitle('文章不存在')
-          } else {
-            cachedArticle = res.data
-            // 缓存文章详情
-            cache.set(cacheKey, cachedArticle, cacheExpire)
-            articleInfo.value = cachedArticle
-            error.value = false
-            setDynamicTitle(articleInfo.value.title)
-          }
+          error.value = true
+          errorMsg.value = '未找到该文章，可能已被删除或ID错误'
+          setDynamicTitle('文章不存在')
+        } else {
+          cachedArticle = res.data
+          cache.set(cacheKey, cachedArticle, cacheExpire)
+          articleInfo.value = cachedArticle
+          error.value = false
+          setDynamicTitle(articleInfo.value.title)
+        }
       } else {
         error.value = true
         errorMsg.value = res.msg || '获取文章详情失败'
         setDynamicTitle('获取文章失败')
       }
     } else {
-      // 使用缓存数据
       articleInfo.value = cachedArticle
       error.value = false
       setDynamicTitle(articleInfo.value.title)
     }
     
-    // 获取文章详情后，并行执行操作状态检查和评论获取
-    if (!error.value) {
+    if (!error.value && articleInfo.value.id) {
       await Promise.all([
         initArticleActions(),
         getComments(articleInfo.value.id, currentPage.value)
@@ -403,24 +386,18 @@ const getArticleDetail = async (id) => {
   } catch (err) {
     error.value = true
     errorMsg.value = '网络异常，请检查网络后刷新页面'
-    // console.error('[文章详情接口异常]：', err)
     setDynamicTitle('网络异常')
   } finally {
     loading.value = false
   }
 }
 
-// 计算属性
-const isLogin = computed(() => store.comm.login.finish && Object.keys(store.comm.login.user).length > 0)
-
-// 获取文章评论
 const getComments = async (articleId, page = 1) => {
+  if (!articleId) return
   try {
-    // 缓存键
-    const cacheKey = `article_comments_${articleId}_${page}`
-    const cacheExpire = 15 // 缓存15分钟
+    const cacheKey = `article_comments_${articleId}_${page}_${pageSize.value}`
+    const cacheExpire = 30
     
-    // 尝试从缓存获取评论数据
     let cachedComments = cache.get(cacheKey)
     
     if (!cachedComments) {
@@ -433,13 +410,13 @@ const getComments = async (articleId, page = 1) => {
       })
       
       if (res.code === 200) {
-        commentCount.value = res.data?.count || 0
-        totalComments.value = res.data?.count || 0
-        staticCommentList.value = res.data?.data || []
-        // 缓存评论数据
+        const { count = 0, data = [] } = res.data || {}
+        commentCount.value = count
+        totalComments.value = count
+        staticCommentList.value = data
         cache.set(cacheKey, {
-          count: res.data?.count || 0,
-          data: res.data?.data || []
+          count,
+          data
         }, cacheExpire)
       }
     } else {
@@ -448,7 +425,7 @@ const getComments = async (articleId, page = 1) => {
       staticCommentList.value = cachedComments.data || []
     }
   } catch (error) {
-    // console.error('获取评论失败：', error)
+    console.error('获取评论失败:', error)
   }
 }
 
@@ -519,63 +496,96 @@ const handleCommentPageChange = async (page) => {
   await getComments(articleInfo.value.id, page)
 }
 
-/**
- * 清除用户操作缓存
- */
-const clearUserActionsCache = () => {
-  const articleId = articleInfo.value.id
-  const userId = store.comm.login.user.id
-  if (articleId && userId) {
-    const cacheKey = `${USER_ACTIONS_CACHE_KEY}_${userId}_${articleId}`
-    userActionsCache.delete(cacheKey)
+const getUserActionsCache = () => {
+  try {
+    const data = localStorage.getItem(USER_ACTIONS_CACHE_KEY)
+    return data ? JSON.parse(data) : {}
+  } catch {
+    return {}
   }
 }
 
-/**
- * 处理文章点赞
- */
+const setUserActionsCache = (cacheData) => {
+  try {
+    localStorage.setItem(USER_ACTIONS_CACHE_KEY, JSON.stringify(cacheData))
+  } catch {
+  }
+}
+
+const clearUserActionsCache = (articleId) => {
+  const userId = commStore.login.user.id
+  if (!articleId || !userId) return
+  
+  const cacheData = getUserActionsCache()
+  const key = `${userId}_${articleId}`
+  if (cacheData[key]) {
+    delete cacheData[key]
+    setUserActionsCache(cacheData)
+  }
+}
+
+const getCachedUserAction = (articleId, actionType) => {
+  const userId = commStore.login.user.id
+  if (!articleId || !userId) return null
+  
+  const cacheData = getUserActionsCache()
+  const key = `${userId}_${articleId}`
+  const cached = cacheData[key]
+  
+  if (cached && (Date.now() - cached.timestamp) < USER_ACTIONS_CACHE_EXPIRE * 60 * 1000) {
+    return cached[actionType]
+  }
+  return null
+}
+
+const setCachedUserAction = (articleId, actionType, value) => {
+  const userId = commStore.login.user.id
+  if (!articleId || !userId) return
+  
+  const cacheData = getUserActionsCache()
+  const key = `${userId}_${articleId}`
+  
+  cacheData[key] = cacheData[key] || { timestamp: Date.now() }
+  cacheData[key][actionType] = value
+  cacheData[key].timestamp = Date.now()
+  
+  setUserActionsCache(cacheData)
+}
+
 const handleLike = async () => {
   try {
     const articleId = articleInfo.value.id
     if (!articleId) return
 
-    // 确保isLiked.value是布尔值
     const currentState = !!isLiked.value
-
-    const userId = store.comm.login.user.id
+    const userId = commStore.login.user.id
 
     const res = await request.post('/api/exp/like', {
       bind_id: articleId,
       bind_type: 'article',
       state: currentState ? 0 : 1,
       description: '文章点赞',
-      uid: userId // 显式传递用户ID
+      uid: userId
     })
 
     if (res.code === 200) {
-      // 计算新状态
       const newState = !currentState
-      // 更新点赞状态
       isLiked.value = newState
-      // 更新点赞数，确保不小于0
       likeCount.value = newState ? likeCount.value + 1 : Math.max(0, likeCount.value - 1)
       
-      // 清除用户操作缓存
-      clearUserActionsCache()
+      clearUserActionsCache(articleId)
+      setCachedUserAction(articleId, 'isLiked', newState)
       
-      // 强制更新articleInfo中的result数据，确保页面刷新后状态正确
-      if (articleInfo.value.result) {
-        if (userId) {
-          if (!articleInfo.value.result.like) {
-            articleInfo.value.result.like = []
+      if (articleInfo.value.result && userId) {
+        if (!articleInfo.value.result.like) {
+          articleInfo.value.result.like = []
+        }
+        if (newState) {
+          if (!articleInfo.value.result.like.includes(userId)) {
+            articleInfo.value.result.like.push(userId)
           }
-          if (newState) {
-            if (!articleInfo.value.result.like.includes(userId)) {
-              articleInfo.value.result.like.push(userId)
-            }
-          } else {
-            articleInfo.value.result.like = articleInfo.value.result.like.filter(id => id !== userId)
-          }
+        } else {
+          articleInfo.value.result.like = articleInfo.value.result.like.filter(id => id !== userId)
         }
       }
       
@@ -622,51 +632,40 @@ const handleShare = async () => {
   }
 }
 
-/**
- * 处理文章收藏
- */
 const handleCollect = async () => {
   try {
     const articleId = articleInfo.value.id
     if (!articleId) return
 
-    // 确保isCollected.value是布尔值
     const currentState = !!isCollected.value
-
-    const userId = store.comm.login.user.id
+    const userId = commStore.login.user.id
 
     const res = await request.post('/api/exp/collect', {
       bind_id: articleId,
       bind_type: 'article',
       state: currentState ? 0 : 1,
       description: '文章收藏',
-      uid: userId // 显式传递用户ID
+      uid: userId
     })
 
     if (res.code === 200) {
-      // 计算新状态
       const newState = !currentState
-      // 更新收藏状态
       isCollected.value = newState
-      // 更新收藏数，确保不小于0
       collectCount.value = newState ? collectCount.value + 1 : Math.max(0, collectCount.value - 1)
       
-      // 清除用户操作缓存
-      clearUserActionsCache()
+      clearUserActionsCache(articleId)
+      setCachedUserAction(articleId, 'isCollected', newState)
       
-      // 强制更新articleInfo中的result数据，确保页面刷新后状态正确
-      if (articleInfo.value.result) {
-        if (userId) {
-          if (!articleInfo.value.result.collect) {
-            articleInfo.value.result.collect = []
+      if (articleInfo.value.result && userId) {
+        if (!articleInfo.value.result.collect) {
+          articleInfo.value.result.collect = []
+        }
+        if (newState) {
+          if (!articleInfo.value.result.collect.includes(userId)) {
+            articleInfo.value.result.collect.push(userId)
           }
-          if (newState) {
-            if (!articleInfo.value.result.collect.includes(userId)) {
-              articleInfo.value.result.collect.push(userId)
-            }
-          } else {
-            articleInfo.value.result.collect = articleInfo.value.result.collect.filter(id => id !== userId)
-          }
+        } else {
+          articleInfo.value.result.collect = articleInfo.value.result.collect.filter(id => id !== userId)
         }
       }
       
@@ -679,53 +678,41 @@ const handleCollect = async () => {
   }
 }
 
-/**
- * 初始化文章操作状态
- */
-const initArticleActions = async () => {
-  // 从articleInfo.result中获取点赞数、分享数和收藏数
+const initArticleActions = () => {
   likeCount.value = articleInfo.value.result?.like?.length || 0
   shareCount.value = articleInfo.value.result?.share?.length || 0
   collectCount.value = articleInfo.value.result?.collect?.length || 0
   
-  // 检查用户是否已点赞/收藏
-  await checkUserActions()
+  checkUserActions()
 }
 
-/**
- * 检查用户操作状态（是否已点赞、已收藏）
- */
 const checkUserActions = async () => {
   try {
     const articleId = articleInfo.value.id
     if (!articleId) return
     
-    // 检查用户是否已登录
     if (!isLogin.value) {
       isLiked.value = false
       isCollected.value = false
       return
     }
     
-    const userId = store.comm.login.user.id
+    const userId = commStore.login.user.id
     if (!userId) {
       isLiked.value = false
       isCollected.value = false
       return
     }
     
-    // 构建缓存键（基于用户ID和文章ID）
-    const cacheKey = `${USER_ACTIONS_CACHE_KEY}_${userId}_${articleId}`
+    const cachedLiked = getCachedUserAction(articleId, 'isLiked')
+    const cachedCollected = getCachedUserAction(articleId, 'isCollected')
     
-    // 尝试从缓存获取用户操作状态
-    const cachedActions = userActionsCache.get(cacheKey)
-    if (cachedActions && (Date.now() - cachedActions.timestamp) < USER_ACTIONS_CACHE_EXPIRE * 60 * 1000) {
-      isLiked.value = cachedActions.isLiked
-      isCollected.value = cachedActions.isCollected
+    if (cachedLiked !== null && cachedCollected !== null) {
+      isLiked.value = cachedLiked
+      isCollected.value = cachedCollected
       return
     }
     
-    // 并行检查点赞和收藏状态
     const [likeRes, collectRes] = await Promise.all([
       request.get('/api/exp/one', {
         where: JSON.stringify({
@@ -747,18 +734,12 @@ const checkUserActions = async () => {
       })
     ])
     
-    // 更新状态
     isLiked.value = !!likeRes.data && likeRes.data.state === 1
     isCollected.value = !!collectRes.data && collectRes.data.state === 1
     
-    // 缓存用户操作状态
-    userActionsCache.set(cacheKey, {
-      isLiked: isLiked.value,
-      isCollected: isCollected.value,
-      timestamp: Date.now()
-    })
+    setCachedUserAction(articleId, 'isLiked', isLiked.value)
+    setCachedUserAction(articleId, 'isCollected', isCollected.value)
   } catch (error) {
-    // 出错时默认设置为未操作状态
     isLiked.value = false
     isCollected.value = false
   }

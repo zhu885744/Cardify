@@ -113,7 +113,6 @@
               <p class="mb-0">暂无文章数据，敬请期待～</p>
             </div>
             
-            <!-- 文章时间线 -->
             <div v-else class="timeline-container">
               <div v-for="(articles, yearMonth) in groupedArticles" :key="yearMonth" class="timeline-year-month">
                 <h3 class="timeline-year-month-title">{{ yearMonth }}</h3>
@@ -123,7 +122,7 @@
                       <router-link :to="`/archives/${article.id}`" class="timeline-article-title">{{ article.title }}</router-link>
                       <div class="timeline-article-meta">
                         <span class="timeline-article-date d-flex align-items-center">
-                          <i class="bi bi-calendar-date me-1"></i>{{ formatTime(article.publish_time) }}
+                          <i class="bi bi-calendar-date me-1"></i>{{ format(article.publish_time) }}
                         </span>
                         <span class="timeline-article-category d-flex align-items-center" v-if="article.result?.group && article.result.group.length > 0">
                           <i class="bi bi-folder me-1"></i>{{ article.result.group[0].name }}
@@ -135,6 +134,16 @@
                     </div>
                   </div>
                 </div>
+              </div>
+              <div v-if="articlePage.value < articlePageCount.value" class="text-center py-4">
+                <button 
+                  @click="loadMoreArticles" 
+                  class="btn btn-outline-primary btn-sm"
+                  :disabled="articlesLoading.value"
+                >
+                  <i class="bi bi-arrow-down-circle me-1"></i>
+                  {{ articlesLoading.value ? '加载中...' : '加载更多文章' }}
+                </button>
               </div>
             </div>
 
@@ -426,7 +435,7 @@
                                     <span v-else>{{ message.result?.author?.nickname || message.author?.nickname || message.nickname || '匿名用户' }}</span>
                                     <span v-if="message.result?.author?.result?.isAuthor || message.result?.author?.isAuthor || message.author?.result?.isAuthor || message.isAuthor" class="badge bg-primary text-white ms-2 rounded-pill">作者</span>
                                   </h6>
-                                  <small class="text-muted">{{ formatTime(message.create_time || message.time || message.update_time) }}</small>
+                                  <small class="text-muted">{{ format(message.create_time || message.time || message.update_time) }}</small>
                                 </div>
                               </div>
                               <!-- 回复图标：点击显示回复弹窗 -->
@@ -517,7 +526,7 @@
                                     <span v-else>{{ reply.result?.author?.nickname || reply.author?.nickname || reply.nickname || '匿名用户' }}</span>
                                     <span v-if="reply.result?.author?.result?.isAuthor || reply.result?.author?.isAuthor || reply.author?.result?.isAuthor || reply.isAuthor" class="badge bg-primary text-white ms-2 rounded-pill">作者</span>
                                   </h6>
-                                  <small class="text-muted">{{ formatTime(reply.create_time || reply.time || reply.update_time) }}</small>
+                                  <small class="text-muted">{{ format(reply.create_time || reply.time || reply.update_time) }}</small>
                                 </div>
                               </div>
                               <p class="mb-0 px-2 py-1 bg-body-tertiary" v-html="processMessageContent(reply.content || '')"></p>
@@ -617,9 +626,9 @@
                 {{ authorInfo.nickname || '匿名' }}
               </span>
               <span class="meta-item d-flex align-items-center">
-                <i class="bi bi-calendar-fill me-2"></i>
-                {{ formatTime(pageInfo.publish_time || Date.now() / 1000) }}
-              </span>
+                      <i class="bi bi-calendar-fill me-2"></i>
+                      {{ format(pageInfo.publish || Date.now() / 1000) }}
+                    </span>
               <span class="meta-item d-flex align-items-center">
                 <i class="bi bi-chat-fill me-2"></i>
                 {{ commentCount || 0 }} 评论
@@ -639,7 +648,7 @@
             <div class="d-flex justify-content-end">
               <span class="text-muted d-flex align-items-center">
                 <i class="bi bi-clock-fill me-2"></i>
-                最后更新：{{ formatTime(pageInfo.update_time || pageInfo.last_update || Date.now() / 1000) }}
+                最后更新：{{ format(pageInfo.update_time || pageInfo.last_update || Date.now() / 1000) }}
               </span>
             </div>
           </div>
@@ -750,26 +759,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick, shallowRef, markRaw } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useCommStore } from '@/store/comm'
 import { request } from '@/utils/network'
 import iMarkdown from '@/comps/custom/i-markdown.vue'
 import iComment from '@/comps/custom/i-comment.vue'
 import iEmojiPicker from '@/comps/custom/i-emoji-picker.vue'
+import iVirtualScroll from '@/comps/custom/i-virtual-scroll.vue'
 import utils from '@/utils/utils'
 import { cache } from '@/utils/network'
 import { usePageTitle, uploadImage, toast } from '@/utils/app'
 import Sortable from 'sortablejs'
 
-// 状态管理
 const store = useCommStore()
 
-// 页面标题管理
 const { setDynamicTitle } = usePageTitle()
 setDynamicTitle('加载中...')
 
-// 接收路由传递的页面key：使用pageKey代替key，避免保留关键字冲突
 const props = defineProps({
   pageKey: {
     type: String,
@@ -778,13 +785,11 @@ const props = defineProps({
   }
 })
 
-// 响应式状态
 const loading = ref(true)
 const error = ref(false)
 const errorMsg = ref('')
-const pageInfo = ref({})
+const pageInfo = shallowRef({})
 
-// 友链申请相关
 const linkForm = ref({
   nickname: '',
   url: '',
@@ -798,40 +803,40 @@ const isCoolingDown = ref(false)
 const coolingDownTime = ref(0)
 let coolingDownTimer = null
 
-// 路由实例
 const router = useRouter()
 const route = useRoute()
 
-// 评论相关响应式数据
 const commentCount = ref(0)
-const commentList = ref([])
+const commentList = shallowRef([])
 const isDarkMode = ref(false)
-const authorInfo = ref({})
-const viewCount = ref(0) // 浏览量
-// 评论分页相关
+const authorInfo = shallowRef({})
+const viewCount = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const totalComments = ref(0)
 
-// 文章评论配置（从文章的json字段中提取）
-const articleCommentConfig = computed(() => {
+const parsedPageJson = computed(() => {
   const jsonData = pageInfo.value.json
-  if (!jsonData) {
-    return { allow: null, show: null }
-  }
+  if (!jsonData) return null
   try {
-    const parsed = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
-    return {
-      allow: parsed?.comment?.allow ?? null,
-      show: parsed?.comment?.show ?? null
-    }
+    return typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
   } catch (e) {
-    console.error('解析文章评论配置失败:', e)
-    return { allow: null, show: null }
+    console.error('解析页面JSON配置失败:', e)
+    return null
   }
 })
 
-// 归档页面相关数据
+const articleCommentConfig = computed(() => {
+  const parsed = parsedPageJson.value
+  if (!parsed) {
+    return markRaw({ allow: null, show: null })
+  }
+  return markRaw({
+    allow: parsed?.comment?.allow ?? null,
+    show: parsed?.comment?.show ?? null
+  })
+})
+
 const archiveStats = ref({
   articleCount: 0,
   categoryCount: 0,
@@ -843,71 +848,50 @@ const archiveStats = ref({
 const refreshingArchive = ref(false)
 let archiveRefreshTimer = null
 
-// 文章归档相关数据
-const articles = ref([])
+const articles = shallowRef([])
 const articlesLoading = ref(false)
 const articlesError = ref(false)
 const articlesErrorMsg = ref('')
 const groupedArticles = ref({})
-// 分页相关
 const articlePage = ref(1)
 const articlePageSize = ref(20)
 const articleTotal = ref(0)
 
-// 计算总页数
 const articlePageCount = computed(() => {
   return Math.ceil(articleTotal.value / articlePageSize.value)
 })
 
-// 友链页面相关数据
-const links = ref([])
+const links = shallowRef([])
 const linksLoading = ref(false)
 const linksError = ref(false)
 const linksErrorMsg = ref('')
 const linkTotal = ref(0)
 
-// 计算属性
+const currentPageKey = computed(() => (props.pageKey || route.params.key || '').trim())
+
 const isLogin = computed(() => store.login.finish && Object.keys(store.login.user).length > 0)
 
-// 判断是否为归档页面
-const isArchivePage = computed(() => {
-  const currentKey = (props.pageKey || route.params.key || '').trim()
-  return currentKey === 'archive'
-})
+const isArchivePage = computed(() => currentPageKey.value === 'archive')
 
-// 判断是否为友链页面
-const isLinksPage = computed(() => {
-  const currentKey = (props.pageKey || route.params.key || '').trim()
-  return currentKey === 'links'
-})
+const isLinksPage = computed(() => currentPageKey.value === 'links')
 
-// 判断是否为留言页面
-const isMessagePage = computed(() => {
-  const currentKey = (props.pageKey || route.params.key || '').trim()
-  return currentKey === 'message'
-})
+const isMessagePage = computed(() => currentPageKey.value === 'message')
 
-// 留言统计相关数据
 const uniqueCommenters = ref(0)
 const recentMessagesCount = ref(0)
 
-// 留言板相关数据
 const messageInput = ref('')
 const replyInput = ref('')
 const showReplyIndex = ref(null)
 const replyTarget = ref(null)
 const selectedMessage = ref(null)
 const messagesGrid = ref(null)
-// 表情功能相关状态
 const showMessageEmojiPicker = ref(false)
 const showReplyEmojiPicker = ref(false)
-// 发布状态
 const isPublishingMessage = ref(false)
-// 评论配置
-const commentConfig = ref({})
+const commentConfig = shallowRef({})
 const isCommentEnabled = ref(true)
 
-// 友链分组聚合
 const groupLinkMap = computed(() => {
   const map = {}
   links.value.forEach(link => {
@@ -915,20 +899,19 @@ const groupLinkMap = computed(() => {
     if (!map[groupName]) map[groupName] = []
     map[groupName].push(link)
   })
-  return map
+  return markRaw(map)
 })
 
-/**
- * 时间格式化：使用formatters.js中的formatDate函数
- */
 const formatTime = (timestamp) => {
   if (!timestamp || timestamp === 0) return '未知时间'
   return utils.timeToDate(timestamp, 'Y-M-D')
 }
 
-/**
- * Key合法性校验：全量兜底，防止key为undefined/null
- */
+const format = (timestamp) => {
+  if (!timestamp || timestamp === 0) return '未知时间'
+  return utils.timeToDate(timestamp, 'Y-M-D')
+}
+
 const checkPageKey = (key) => {
   if (!key) {
     errorMsg.value = '页面标识不能为空，请检查访问地址'
@@ -946,16 +929,21 @@ const checkPageKey = (key) => {
   return true
 }
 
-/**
- * 获取评论配置
- */
 const getCommentConfig = async () => {
   try {
+    const cacheKey = 'comment_config'
+    const cacheExpire = 300
+    let cachedConfig = cache.get(cacheKey)
+    if (cachedConfig) {
+      return cachedConfig
+    }
     const response = await request.get('/api/config/one', {
       key: 'COMMENT'
     })
     if (response.code === 200 && response.data) {
-      return response.data.json || {}
+      const result = response.data.json || {}
+      cache.set(cacheKey, result, cacheExpire)
+      return result
     }
     return {}
   } catch (error) {
@@ -964,16 +952,13 @@ const getCommentConfig = async () => {
   }
 }
 
-/**
- * 获取独立页面数据
- */
 const getPageData = async (pageKey) => {
   loading.value = true
   error.value = false
   errorMsg.value = ''
   try {
     const cacheKey = `page_detail_${pageKey}`
-    const cacheExpire = 60 
+    const cacheExpire = 60
     
     let cachedPage = cache.get(cacheKey)
     
@@ -986,45 +971,42 @@ const getPageData = async (pageKey) => {
       const res = await request.get('/api/pages/one', queryParams)
 
       if (res.code === 200) {
-      if (!res.data || Object.keys(res.data).length === 0) {
-        error.value = true
-        errorMsg.value = '未找到该独立页面，可能已被删除或访问地址错误'
-        setDynamicTitle('页面不存在')
+        if (!res.data || Object.keys(res.data).length === 0) {
+          error.value = true
+          errorMsg.value = '未找到该独立页面，可能已被删除或访问地址错误'
+          setDynamicTitle('页面不存在')
+        } else {
+          cachedPage = res.data
+          cache.set(cacheKey, cachedPage, cacheExpire)
+          pageInfo.value = cachedPage
+          viewCount.value = res.data.views || 0
+          error.value = false
+          setDynamicTitle(pageInfo.value.title)
+        }
       } else {
-        cachedPage = res.data
-        cache.set(cacheKey, cachedPage, cacheExpire)
-        pageInfo.value = cachedPage
-        viewCount.value = res.data.views || 0
-        error.value = false
-        setDynamicTitle(pageInfo.value.title)
+        error.value = true
+        errorMsg.value = res.msg || '获取独立页面数据失败'
+        setDynamicTitle('获取页面失败')
       }
     } else {
-      error.value = true
-      errorMsg.value = res.msg || '获取独立页面数据失败'
-      setDynamicTitle('获取页面失败')
-    }
-  } else {
       pageInfo.value = cachedPage
       viewCount.value = cachedPage.views || 0
       error.value = false
       setDynamicTitle(pageInfo.value.title)
     }
-} catch (err) {
-  error.value = true
-  errorMsg.value = '网络异常，请检查网络后刷新页面'
-  setDynamicTitle('网络异常')
-} finally {
-  loading.value = false
-}
+  } catch (err) {
+    error.value = true
+    errorMsg.value = '网络异常，请检查网络后刷新页面'
+    setDynamicTitle('网络异常')
+  } finally {
+    loading.value = false
+  }
 }
 
-/**
- * 页面初始化
- */
 const initPage = async () => {
-  const currentKey = (props.pageKey || route.params.key || '').trim()
+  const key = currentPageKey.value
 
-  if (currentKey === 'archive') {
+  if (key === 'archive') {
     setDynamicTitle('加载中...')
     await getArchivePageData()
     await Promise.all([
@@ -1032,22 +1014,22 @@ const initPage = async () => {
       fetchArticles()
     ])
     startArchiveAutoRefresh()
-  } else if (currentKey === 'links') {
+  } else if (key === 'links') {
     setDynamicTitle('加载中...')
     await Promise.all([
       getLinksPageData(),
       fetchLinks()
     ])
     await getLinksComments(currentPage.value, pageSize.value)
-  } else if (currentKey === 'message') {
+  } else if (key === 'message') {
     setDynamicTitle('加载中...')
     await getMessagePageData()
     await Promise.all([
       getComments(pageInfo.value.id, currentPage.value, pageSize.value),
       calculateMessageStats()
     ])
-  } else if (checkPageKey(currentKey)) {
-    getPageData(currentKey)
+  } else if (checkPageKey(key)) {
+    getPageData(key)
   } else {
     error.value = true
     loading.value = false
@@ -1056,17 +1038,8 @@ const initPage = async () => {
   }
 }
 
-// 监听路由
 watch(
-  () => route.params.key,
-  () => {
-    initPage()
-  },
-  { immediate: false }
-)
-
-watch(
-  () => props.pageKey,
+  currentPageKey,
   () => {
     initPage()
   },
@@ -1102,8 +1075,8 @@ const initSortable = () => {
   }
 }
 
-// 获取页面评论
 const getComments = async (pageId, page = 1, limit = 10) => {
+  if (!pageId) return
   try {
     const cacheKey = `page_comments_${pageId}_${page}_${limit}`
     const cacheExpire = 5
@@ -1120,16 +1093,17 @@ const getComments = async (pageId, page = 1, limit = 10) => {
       })
       
       if (res.code === 200) {
-        commentCount.value = res.data?.count || 0
-        commentList.value = res.data?.data || []
-        totalComments.value = res.data?.count || 0
+        const { count = 0, data = [] } = res.data || {}
+        commentCount.value = count
+        commentList.value = data
+        totalComments.value = count
         currentPage.value = page
         pageSize.value = limit
         cache.set(cacheKey, {
-          count: res.data?.count || 0,
-          data: res.data?.data || [],
-          page: page,
-          limit: limit
+          count,
+          data,
+          page,
+          limit
         }, cacheExpire)
       }
     } else {
@@ -1140,6 +1114,7 @@ const getComments = async (pageId, page = 1, limit = 10) => {
       pageSize.value = cachedComments.limit || limit
     }
   } catch (error) {
+    console.error('获取评论失败:', error)
   }
 }
 
@@ -1443,7 +1418,6 @@ const getArchivePageData = async () => {
   }
 }
 
-// 获取文章列表
 const fetchArticles = async () => {
   const cacheKey = 'archive_articles'
   const cacheExpire = 300
@@ -1461,7 +1435,11 @@ const fetchArticles = async () => {
   articlesErrorMsg.value = ''
   
   try {
-    const res = await request.get('/api/article/all?page=1&limit=9999&order=create_time+desc')
+    const res = await request.get('/api/article/all', {
+      page: 1,
+      limit: 50,
+      order: 'create_time desc'
+    })
     
     if (res && res.code === 200 && res.data) {
       const { data = [], count = 0 } = res.data
@@ -1483,7 +1461,27 @@ const fetchArticles = async () => {
   }
 }
 
-// 按年月分组文章
+const loadMoreArticles = async () => {
+  if (articlePage.value >= articlePageCount.value) return
+  
+  articlePage.value++
+  try {
+    const res = await request.get('/api/article/all', {
+      page: articlePage.value,
+      limit: articlePageSize.value,
+      order: 'create_time desc'
+    })
+    
+    if (res && res.code === 200 && res.data) {
+      const { data = [] } = res.data
+      articles.value = [...articles.value, ...data]
+      groupArticlesByYearMonth(articles.value)
+    }
+  } catch (err) {
+    console.error('加载更多文章失败:', err)
+  }
+}
+
 const groupArticlesByYearMonth = (articlesData) => {
   const grouped = {}
   
@@ -1636,16 +1634,25 @@ const getMessagePageData = async () => {
   }
 }
 
-// 计算留言统计数据
 const calculateMessageStats = async () => {
   try {
     if (!pageInfo.value.id) return
+    
+    const cacheKey = `message_stats_${pageInfo.value.id}`
+    const cacheExpire = 60
+    const cachedStats = cache.get(cacheKey)
+    
+    if (cachedStats) {
+      uniqueCommenters.value = cachedStats.uniqueCommenters || 0
+      recentMessagesCount.value = cachedStats.recentMessagesCount || 0
+      return
+    }
     
     const res = await request.get('/api/comment/flat', {
       bind_id: pageInfo.value.id,
       bind_type: 'page',
       page: 1,
-      limit: 1000,
+      limit: 200,
       order: 'create_time desc'
     })
     
@@ -1666,6 +1673,11 @@ const calculateMessageStats = async () => {
         return comment.create_time * 1000 >= sevenDaysAgo
       })
       recentMessagesCount.value = recentComments.length
+      
+      cache.set(cacheKey, {
+        uniqueCommenters: uniqueUsers.size,
+        recentMessagesCount: recentComments.length
+      }, cacheExpire)
     }
   } catch (error) {
     console.error('计算留言统计数据失败：', error)
@@ -1944,7 +1956,6 @@ const navigateToAuthor = (authorId) => {
   }, 500)
 }
 
-// 监听页面ID
 watch(
   () => pageInfo.value.id,
   (newId) => {
@@ -1957,27 +1968,29 @@ watch(
   { immediate: false }
 )
 
-// 监听留言列表，初始化拖拽
+let sortableInitTimer = null
 watch(
   () => commentList.value?.length,
   () => {
-    nextTick(() => {
-      initSortable()
-    })
+    if (sortableInitTimer) clearTimeout(sortableInitTimer)
+    sortableInitTimer = setTimeout(() => {
+      nextTick(() => {
+        initSortable()
+      })
+    }, 100)
   }
 )
 
-// 挂载
 onMounted(() => {
   initPage()
   detectDarkMode()
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', detectDarkMode)
 })
 
-// 销毁
 onUnmounted(() => {
   if (archiveRefreshTimer) clearInterval(archiveRefreshTimer)
   if (coolingDownTimer) clearInterval(coolingDownTimer)
+  if (sortableInitTimer) clearTimeout(sortableInitTimer)
   if (window.sortableInstance) {
     try {
       window.sortableInstance.destroy()
