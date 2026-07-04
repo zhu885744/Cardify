@@ -127,6 +127,11 @@
               </button>
               <ul class="dropdown-menu dropdown-menu-start" aria-labelledby="userDropdownMenu">
                 <li>
+                  <router-link class="dropdown-item" to="/article-write">
+                    <i class="bi bi-pencil-square me-1"></i>发布文章
+                  </router-link>
+                </li>
+                <li>
                   <router-link class="dropdown-item" :to="`/author/${store.comm.login.user.id}`">
                     <i class="bi bi-person me-1"></i>用户主页
                   </router-link>
@@ -306,6 +311,9 @@
             <span v-if="signDays > 0" class="ms-1 text-muted">({{ signDays }}天)</span>
           </button>
           <div class="d-grid grid-cols-2 gap-3">
+            <router-link class="btn btn-outline-secondary text-center" to="/article-write" @click="closeSidebar">
+              <i class="bi bi-pencil-square me-1"></i>发布文章
+            </router-link>
             <router-link class="btn btn-outline-secondary text-center" :to="`/author/${store.comm.login.user.id}`" @click="closeSidebar">
               <i class="bi bi-person me-1"></i>用户主页
             </router-link>

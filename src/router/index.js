@@ -86,6 +86,13 @@ const routes = [
     meta: { title: '文章详情', requiresAuth: false },
     props: true
   },
+  {
+    path: '/article-write/:id?',
+    name: '撰写文章',
+    component: () => import('@/views/index/pages/article-write[id].vue'),
+    meta: { title: '撰写文章', requiresAuth: true },
+    props: true
+  },
 
   // ========== 分类相关路由 ==========
   {

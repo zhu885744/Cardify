@@ -1,35 +1,58 @@
 <template>
-  <div class="simple-editor">
+  <div 
+    class="md-editor" 
+    :class="{ 'md-editor--fullscreen': isFullscreen }"
+    :style="{ height: isFullscreen ? '100vh' : editorHeight + 'px' }"
+  >
+    <div class="md-editor__toolbar">
+      <div class="md-editor__toolbar-group">
+        <button class="md-editor__btn" @click="triggerImageUpload" title="插入图片">
+          <i class="bi bi-image"></i>
+        </button>
+        <button class="md-editor__btn" @click="insertFormat('bold')" title="加粗">
+          <i class="bi bi-type-bold"></i>
+        </button>
+        <button class="md-editor__btn" @click="insertFormat('italic')" title="斜体">
+          <i class="bi bi-type-italic"></i>
+        </button>
+        <button class="md-editor__btn" @click="insertFormat('link')" title="链接">
+          <i class="bi bi-link-45deg"></i>
+        </button>
+      </div>
+      <div class="md-editor__toolbar-divider"></div>
+      <div class="md-editor__toolbar-group">
+        <button class="md-editor__btn" @click="insertFormat('quote')" title="引用">
+          <i class="bi bi-quote"></i>
+        </button>
+        <button class="md-editor__btn" @click="insertFormat('code')" title="代码">
+          <i class="bi bi-code"></i>
+        </button>
+      </div>
+      <div class="md-editor__toolbar-spacer"></div>
+      <div class="md-editor__toolbar-group">
+        <button class="md-editor__btn" @click="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '全屏'">
+          <i :class="isFullscreen ? 'bi bi-arrows-fullscreen' : 'bi bi-arrows-fullscreen'"></i>
+        </button>
+      </div>
+    </div>
+
     <textarea
       ref="textareaRef"
       v-model="state.content"
-      class="editor-textarea"
+      class="md-editor__textarea"
       :placeholder="placeholder"
       @input="handleInput"
       @keydown="handleKeydown"
     ></textarea>
-    
-    <div class="editor-actions">
-      <button class="action-btn" @click="triggerImageUpload" title="插入图片">
-        <i class="bi bi-image"></i>
-      </button>
-      <button class="action-btn" @click="insertFormat('bold')" title="加粗">
-        <i class="bi bi-type-bold"></i>
-      </button>
-      <button class="action-btn" @click="insertFormat('italic')" title="斜体">
-        <i class="bi bi-type-italic"></i>
-      </button>
-      <button class="action-btn" @click="insertFormat('link')" title="链接">
-        <i class="bi bi-link-45deg"></i>
-      </button>
-      <button class="action-btn" @click="insertFormat('quote')" title="引用">
-        <i class="bi bi-quote"></i>
-      </button>
-      <button class="action-btn" @click="insertFormat('code')" title="代码">
-        <i class="bi bi-code"></i>
-      </button>
+
+    <div 
+      class="md-editor__resize-handle" 
+      @mousedown="startResize"
+      title="拖动调整高度"
+    >
+      <i class="bi bi-grip-vertical"></i>
     </div>
-    
+
     <input
       type="file"
       ref="fileInputRef"
@@ -41,7 +64,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { request } from '@/utils/network'
 import { toast } from '@/utils/app'
 
@@ -53,6 +76,10 @@ const props = defineProps({
   placeholder: {
     type: String,
     default: '写点什么吧！'
+  },
+  height: {
+    type: Number,
+    default: 400
   }
 })
 
@@ -65,11 +92,21 @@ const state = reactive({
   content: ''
 })
 
+const editorHeight = ref(props.height)
+const isFullscreen = ref(false)
+const isResizing = ref(false)
+const startY = ref(0)
+const startHeight = ref(0)
+
 watch(() => props.modelValue, (newVal) => {
   if (newVal !== state.content) {
     state.content = newVal
   }
 }, { immediate: true })
+
+watch(() => props.height, (newVal) => {
+  editorHeight.value = newVal
+})
 
 const handleInput = () => {
   emit('update:modelValue', state.content)
@@ -85,14 +122,14 @@ const handleKeydown = (e) => {
 const insertText = (text) => {
   const textarea = textareaRef.value
   if (!textarea) return
-  
+
   const start = textarea.selectionStart
   const end = textarea.selectionEnd
   const content = state.content
-  
+
   state.content = content.substring(0, start) + text + content.substring(end)
   emit('update:modelValue', state.content)
-  
+
   setTimeout(() => {
     textarea.focus()
     textarea.selectionStart = textarea.selectionEnd = start + text.length
@@ -102,14 +139,14 @@ const insertText = (text) => {
 const insertFormat = (type) => {
   const textarea = textareaRef.value
   if (!textarea) return
-  
+
   const start = textarea.selectionStart
   const end = textarea.selectionEnd
   const selectedText = state.content.substring(start, end)
-  
+
   let insertText = ''
   let cursorOffset = 0
-  
+
   switch (type) {
     case 'bold':
       insertText = `**${selectedText || '粗体文本'}**`
@@ -134,11 +171,11 @@ const insertFormat = (type) => {
     default:
       return
   }
-  
+
   const content = state.content
   state.content = content.substring(0, start) + insertText + content.substring(end)
   emit('update:modelValue', state.content)
-  
+
   setTimeout(() => {
     textarea.focus()
     textarea.selectionStart = textarea.selectionEnd = start + cursorOffset
@@ -152,27 +189,27 @@ const triggerImageUpload = () => {
 const handleFileChange = async (e) => {
   const file = e.target.files?.[0]
   if (!file) return
-  
+
   if (!file.type.startsWith('image/')) {
     toast.error('请选择图片文件')
     return
   }
-  
+
   if (file.size > 5 * 1024 * 1024) {
     toast.error('图片大小不能超过 5MB')
     return
   }
-  
+
   try {
     const formData = new FormData()
     formData.append('file', file)
-    
+
     const { code, msg, data } = await request.post('/api/file/upload', formData)
-    
+
     if (code !== 200) {
       throw new Error(msg)
     }
-    
+
     const { path } = data
     const imageMarkdown = `![${file.name}](${path})`
     insertText(imageMarkdown)
@@ -184,73 +221,210 @@ const handleFileChange = async (e) => {
   }
 }
 
+const startResize = (e) => {
+  if (isFullscreen.value) return
+  isResizing.value = true
+  startY.value = e.clientY
+  startHeight.value = editorHeight.value
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+}
+
+const handleResize = (e) => {
+  if (!isResizing.value) return
+  const deltaY = e.clientY - startY.value
+  const newHeight = Math.max(200, Math.min(1200, startHeight.value + deltaY))
+  editorHeight.value = newHeight
+}
+
+const stopResize = () => {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+}
+
+const toggleFullscreen = () => {
+  if (isFullscreen.value) {
+    exitFullscreen()
+  } else {
+    enterFullscreen()
+  }
+}
+
+const enterFullscreen = () => {
+  isFullscreen.value = true
+  document.body.style.overflow = 'hidden'
+}
+
+const exitFullscreen = () => {
+  isFullscreen.value = false
+  document.body.style.overflow = ''
+}
+
+const handleKeydownFullscreen = (e) => {
+  if (e.key === 'Escape' && isFullscreen.value) {
+    exitFullscreen()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydownFullscreen)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydownFullscreen)
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.overflow = ''
+})
+
 defineExpose({
   getValue: () => state.content,
   setValue: (value) => {
     state.content = value
     emit('update:modelValue', value)
   },
-  insertText
+  insertText,
+  toggleFullscreen,
+  exitFullscreen
 })
 </script>
 
 <style scoped>
-.simple-editor {
+.md-editor {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--bs-border-color);
   border-radius: 8px;
   overflow: hidden;
   background: var(--bs-body-bg);
   position: relative;
-}
-
-.editor-textarea {
-  width: 100%;
   min-height: 200px;
-  padding: 16px;
-  padding-bottom: 48px;
-  border: none;
-  resize: vertical;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 14px;
-  line-height: 1.6;
-  outline: none;
-  background: transparent;
-  color: var(--bs-body-color);
+  transition: height 0.1s ease;
 }
 
-.editor-textarea::placeholder {
-  color: var(--bs-secondary-color);
-}
-
-.editor-actions {
-  position: absolute;
-  bottom: 0;
+.md-editor--fullscreen {
+  position: fixed;
+  top: 0;
   left: 0;
   right: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  background: var(--bs-tertiary-bg);
-  border-top: 1px solid var(--bs-border-color);
+  bottom: 0;
+  z-index: 9999;
+  border: none;
+  border-radius: 0;
 }
 
-.action-btn {
+.md-editor__fullscreen-header {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+}
+
+.md-editor__close-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.2s;
+}
+
+.md-editor__close-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.md-editor__toolbar {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bs-tertiary-bg);
+  border-bottom: 1px solid var(--bs-border-color);
+  gap: 2px;
+}
+
+.md-editor__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.md-editor__toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--bs-border-color);
+  margin: 0 4px;
+}
+
+.md-editor__toolbar-spacer {
+  flex: 1;
+}
+
+.md-editor__btn {
   width: 32px;
   height: 32px;
   border: none;
   background: transparent;
   border-radius: 4px;
-  cursor: pointer;
   color: var(--bs-body-color);
   font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s;
 }
 
-.action-btn:hover {
+.md-editor__btn:hover {
   background: var(--bs-secondary-bg);
+  color: var(--bs-primary);
+}
+
+.md-editor__btn:active {
+  background: var(--bs-primary);
+  color: #fff;
+}
+
+.md-editor__textarea {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  border: none;
+  resize: none;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  outline: none;
+  background: transparent;
+  color: var(--bs-body-color);
+}
+
+.md-editor__textarea::placeholder {
+  color: var(--bs-secondary-color);
+}
+
+.md-editor__resize-handle {
+  height: 6px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bs-border-color);
+  font-size: 10px;
+  transition: all 0.2s;
+}
+
+.md-editor__resize-handle:hover {
+  background: var(--bs-secondary-bg);
+  color: var(--bs-secondary-color);
+}
+
+.md-editor--fullscreen .md-editor__resize-handle {
+  display: none;
 }
 </style>

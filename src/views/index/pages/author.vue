@@ -221,9 +221,8 @@
                   >
                     <div 
                       class="card h-100 border-0 shadow-sm overflow-hidden article-card"
-                      @click="goToArticle(article.id)"
                     >
-                      <div class="article-cover-wrapper">
+                      <div class="article-cover-wrapper" @click="goToArticle(article.id)">
                         <img 
                           :src="article.covers || defaultCover" 
                           :alt="article.title"
@@ -232,8 +231,18 @@
                         >
                       </div>
                       <div class="card-body">
-                        <h6 class="card-title fw-bold text-truncate mb-2">{{ article.title }}</h6>
-                        <p class="card-text text-body-secondary small line-clamp-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                          <h6 class="card-title fw-bold text-truncate flex-grow-1" @click="goToArticle(article.id)">{{ article.title }}</h6>
+                          <router-link 
+                            v-if="isOwnProfile" 
+                            :to="`/article-write/${article.id}`" 
+                            class="btn btn-sm btn-outline-primary flex-shrink-0 ms-2"
+                            @click.stop
+                          >
+                            <i class="bi bi-pencil"></i>
+                          </router-link>
+                        </div>
+                        <p class="card-text text-body-secondary small line-clamp-2 mb-2" @click="goToArticle(article.id)">
                           {{ article.abstract || '暂无摘要' }}
                         </p>
                         <div class="d-flex justify-content-between align-items-center text-body-secondary small">
@@ -285,9 +294,8 @@
                   >
                     <div 
                       class="card h-100 border-warning border-2 shadow-sm overflow-hidden article-card"
-                      @click="goToArticle(article.id)"
                     >
-                      <div class="article-cover-wrapper">
+                      <div class="article-cover-wrapper" @click="goToArticle(article.id)">
                         <img 
                           :src="article.covers || defaultCover" 
                           :alt="article.title"
@@ -297,10 +305,19 @@
                       </div>
                       <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                          <h6 class="card-title fw-bold text-truncate">{{ article.title }}</h6>
-                          <span class="badge bg-warning text-dark text-xs">待审核</span>
+                          <h6 class="card-title fw-bold text-truncate flex-grow-1" @click="goToArticle(article.id)">{{ article.title }}</h6>
+                          <div class="flex-shrink-0 d-flex align-items-center gap-1">
+                            <router-link 
+                              :to="`/article-write/${article.id}`" 
+                              class="btn btn-sm btn-outline-primary"
+                              @click.stop
+                            >
+                              <i class="bi bi-pencil"></i>
+                            </router-link>
+                            <span class="badge bg-warning text-dark text-xs">待审核</span>
+                          </div>
                         </div>
-                        <p class="card-text text-body-secondary small line-clamp-2 mb-2">
+                        <p class="card-text text-body-secondary small line-clamp-2 mb-2" @click="goToArticle(article.id)">
                           {{ article.abstract || '暂无摘要' }}
                         </p>
                         <div class="d-flex justify-content-between align-items-center text-body-secondary small">
