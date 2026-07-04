@@ -93,6 +93,12 @@ const routes = [
     meta: { title: '撰写文章', requiresAuth: true },
     props: true
   },
+  {
+    path: '/moments',
+    name: '动态',
+    component: () => import('@/views/index/pages/moments.vue'),
+    meta: { title: '动态', requiresAuth: false }
+  },
 
   // ========== 分类相关路由 ==========
   {
