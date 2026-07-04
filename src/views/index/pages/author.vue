@@ -113,16 +113,8 @@
                   {{ userLevelInfo.current.description }}
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="row g-3 mb-3">
-        <div class="col-12">
-          <div class="card border-0 shadow-sm">
-            <div class="card-body py-3">
-              <div class="row text-center g-0">
+              <div class="row text-center g-0 mt-4">
                 <div class="col">
                   <div class="fw-bold fs-4 text-body">{{ userStats.articleCount }}</div>
                   <div class="text-body-secondary small">文章</div>
@@ -133,7 +125,7 @@
                 </div>
                 <div class="col border-start">
                   <div class="fw-bold fs-4 text-body">{{ userStats.likeCount }}</div>
-                  <div class="text-body-secondary small">获赞</div>
+                  <div class="text-body-secondary small">点赞</div>
                 </div>
                 <div class="col border-start">
                   <div class="fw-bold fs-4 text-body">{{ userStats.totalExp }}</div>
@@ -160,6 +152,17 @@
                   <span class="badge bg-secondary">{{ userStats.articleCount }}</span>
                 </button>
               </li>
+              <li class="nav-item" v-if="isOwnProfile">
+                <button 
+                  class="nav-link d-flex align-items-center gap-2" 
+                  :class="{ 'active': activeTab === 'pending' }"
+                  @click="switchTab('pending')"
+                >
+                  <i class="bi bi-clock"></i>
+                  <span>待审核</span>
+                  <span class="badge bg-warning text-dark">{{ pendingArticleCount }}</span>
+                </button>
+              </li>
               <!-- <li class="nav-item">
                 <button 
                   class="nav-link d-flex align-items-center gap-2" 
@@ -182,7 +185,7 @@
                   <span class="badge bg-secondary">{{ likeArticles.length }}</span>
                 </button>
               </li> -->
-              <li class="nav-item">
+              <li class="nav-item" v-if="isOwnProfile">
                 <button 
                   class="nav-link d-flex align-items-center gap-2" 
                   :class="{ 'active': activeTab === 'exp' }"
@@ -192,7 +195,7 @@
                   <span>经验明细</span>
                 </button>
               </li>
-              <li class="nav-item">
+              <li class="nav-item" v-if="isOwnProfile">
                 <button 
                   class="nav-link d-flex align-items-center gap-2" 
                   :class="{ 'active': activeTab === 'footprint' }"
@@ -261,6 +264,73 @@
                       </li>
                       <li class="page-item" :class="{ disabled: currentArticlePage >= articleTotalPages }">
                         <button class="page-link" @click.prevent="changeArticlePage(currentArticlePage + 1)">
+                          <i class="bi bi-chevron-right"></i>
+                        </button>
+                      </li>
+                    </ul>
+                  </nav>
+                </div>
+              </div>
+
+              <div v-else-if="activeTab === 'pending'">
+                <div v-if="pendingArticles.length === 0" class="text-center py-5">
+                  <i class="bi bi-clock text-body-secondary" style="font-size: 3rem;"></i>
+                  <p class="text-body-secondary mt-2">暂无待审核文章</p>
+                </div>
+                <div v-else class="row g-3">
+                  <div 
+                    v-for="article in pendingArticles" 
+                    :key="article.id" 
+                    class="col-12 col-sm-6 col-lg-4"
+                  >
+                    <div 
+                      class="card h-100 border-warning border-2 shadow-sm overflow-hidden article-card"
+                      @click="goToArticle(article.id)"
+                    >
+                      <div class="article-cover-wrapper">
+                        <img 
+                          :src="article.covers || defaultCover" 
+                          :alt="article.title"
+                          class="article-cover-img"
+                          loading="lazy"
+                        >
+                      </div>
+                      <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                          <h6 class="card-title fw-bold text-truncate">{{ article.title }}</h6>
+                          <span class="badge bg-warning text-dark text-xs">待审核</span>
+                        </div>
+                        <p class="card-text text-body-secondary small line-clamp-2 mb-2">
+                          {{ article.abstract || '暂无摘要' }}
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center text-body-secondary small">
+                          <span>{{ article?.result?.group?.[0]?.name || '未分类' }}</span>
+                          <span>{{ formatters.formatDate(article.publish_time) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="pendingTotalPages > 1" class="d-flex justify-content-center pt-4">
+                  <nav>
+                    <ul class="pagination mb-0">
+                      <li class="page-item" :class="{ disabled: currentPendingPage <= 1 }">
+                        <button class="page-link" @click.prevent="changePendingPage(currentPendingPage - 1)">
+                          <i class="bi bi-chevron-left"></i>
+                        </button>
+                      </li>
+                      <li 
+                        v-for="page in visiblePendingPages" 
+                        :key="page" 
+                        class="page-item"
+                        :class="{ active: page === currentPendingPage, disabled: page === '...' }"
+                      >
+                        <button class="page-link" @click.prevent="page !== '...' && changePendingPage(page)">
+                          {{ page }}
+                        </button>
+                      </li>
+                      <li class="page-item" :class="{ disabled: currentPendingPage >= pendingTotalPages }">
+                        <button class="page-link" @click.prevent="changePendingPage(currentPendingPage + 1)">
                           <i class="bi bi-chevron-right"></i>
                         </button>
                       </li>
@@ -578,6 +648,11 @@ const articleCount = ref(0)
 const currentArticlePage = ref(1)
 const articleTotalPages = ref(1)
 
+const pendingArticles = ref([])
+const pendingArticleCount = ref(0)
+const currentPendingPage = ref(1)
+const pendingTotalPages = ref(1)
+
 const collectionArticles = ref([])
 const collectionLoading = ref(false)
 const currentCollectionPage = ref(1)
@@ -619,6 +694,11 @@ const userStats = ref({
 
 const userId = computed(() => {
   return route.params.id || 1
+})
+
+const isOwnProfile = computed(() => {
+  const loggedInUserId = store.login.user?.id
+  return loggedInUserId && String(loggedInUserId) === String(userId.value)
 })
 
 const isAdmin = computed(() => {
@@ -717,9 +797,7 @@ const fetchUserArticles = async () => {
   try {
     if (!userId.value) return
     
-    const currentUserId = userId.value
-    const whereParam = JSON.stringify({ uid: currentUserId, audit: 1 })
-    const countWhereParam = JSON.stringify({ uid: currentUserId, audit: 1 })
+    const whereParam = JSON.stringify({ uid: userId.value, audit: 1 })
     
     const [articlesRes, countRes] = await Promise.all([
       request.get('/api/article/all', {
@@ -729,7 +807,7 @@ const fetchUserArticles = async () => {
         order: 'create_time desc'
       }),
       request.get('/api/article/count', {
-        where: countWhereParam
+        where: whereParam
       })
     ])
     
@@ -757,6 +835,51 @@ const fetchUserArticles = async () => {
   } catch (err) {
     articles.value = []
     articleCount.value = 0
+  }
+}
+
+const fetchPendingArticles = async () => {
+  try {
+    if (!userId.value) return
+    
+    const whereParam = JSON.stringify({ uid: userId.value, audit: 0 })
+    
+    const [articlesRes, countRes] = await Promise.all([
+      request.get('/api/article/all', {
+        where: whereParam,
+        page: currentPendingPage.value,
+        limit: 9,
+        order: 'create_time desc'
+      }),
+      request.get('/api/article/count', {
+        where: whereParam
+      })
+    ])
+    
+    if (articlesRes.code === 200) {
+      if (articlesRes.data && articlesRes.data.data) {
+        pendingArticles.value = articlesRes.data.data
+        pendingArticleCount.value = articlesRes.data.count || 0
+      } else if (articlesRes.data && Array.isArray(articlesRes.data)) {
+        pendingArticles.value = articlesRes.data
+        pendingArticleCount.value = articlesRes.count || 0
+      } else {
+        pendingArticles.value = []
+        pendingArticleCount.value = 0
+      }
+    } else {
+      pendingArticles.value = []
+      pendingArticleCount.value = 0
+    }
+    
+    if (countRes.code === 200) {
+      const count = countRes.data?.count ?? countRes.count ?? countRes.data ?? 0
+      pendingArticleCount.value = count
+      pendingTotalPages.value = Math.ceil(count / 9) || 1
+    }
+  } catch (err) {
+    pendingArticles.value = []
+    pendingArticleCount.value = 0
   }
 }
 
@@ -865,6 +988,36 @@ const fetchUserLikes = async () => {
 const visibleArticlePages = computed(() => {
   const total = articleTotalPages.value
   const current = currentArticlePage.value
+  const pages = []
+  
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    if (current <= 4) {
+      for (let i = 1; i <= 5; i++) pages.push(i)
+      pages.push('...')
+      pages.push(total)
+    } else if (current >= total - 3) {
+      pages.push(1)
+      pages.push('...')
+      for (let i = total - 4; i <= total; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      pages.push('...')
+      for (let i = current - 1; i <= current + 1; i++) pages.push(i)
+      pages.push('...')
+      pages.push(total)
+    }
+  }
+  
+  return pages
+})
+
+const visiblePendingPages = computed(() => {
+  const total = pendingTotalPages.value
+  const current = currentPendingPage.value
   const pages = []
   
   if (total <= 7) {
@@ -1101,9 +1254,14 @@ const getFootprintTypeName = () => {
 }
 
 const switchTab = (tab) => {
+  if ((tab === 'pending' || tab === 'exp' || tab === 'footprint') && !isOwnProfile.value) {
+    return
+  }
   activeTab.value = tab
   if (tab === 'articles') {
     fetchUserArticles()
+  } else if (tab === 'pending') {
+    fetchPendingArticles()
   } else if (tab === 'collections') {
     fetchUserCollections()
   } else if (tab === 'likes') {
@@ -1237,18 +1395,27 @@ const changeArticlePage = (page) => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+const changePendingPage = (page) => {
+  if (page < 1 || page > pendingTotalPages.value) return
+  currentPendingPage.value = page
+  fetchPendingArticles()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 const getArticleCount = async (userId) => {
   try {
-    const whereParam = JSON.stringify({ uid: userId })
-    const response = await request.get('/api/article/count', {
-      where: whereParam
-    })
-    if (response.code === 200) {
-      return response.data
-    }
-    return 0
+    const publishedWhere = JSON.stringify({ uid: userId, audit: 1 })
+    const pendingWhere = JSON.stringify({ uid: userId, audit: 0 })
+    
+    const [publishedRes, pendingRes] = await Promise.all([
+      request.get('/api/article/count', { where: publishedWhere }),
+      request.get('/api/article/count', { where: pendingWhere })
+    ])
+    const published = publishedRes.code === 200 ? publishedRes.data : 0
+    const pending = pendingRes.code === 200 ? pendingRes.data : 0
+    return { published, pending }
   } catch (error) {
-    return 0
+    return { published: 0, pending: 0 }
   }
 }
 
@@ -1294,6 +1461,9 @@ const initUserStats = async () => {
     if (userInfo.value?.exp !== undefined) {
       userStats.value.totalExp = userInfo.value.exp
     }
+    if (cachedData.pendingArticleCount !== undefined) {
+      pendingArticleCount.value = cachedData.pendingArticleCount
+    }
     return
   }
   
@@ -1305,11 +1475,13 @@ const initUserStats = async () => {
     ])
     
     userStats.value = {
-      articleCount: articleCountData,
+      articleCount: articleCountData.published,
       collectCount,
       likeCount,
-      totalExp: userInfo.value?.exp || 0
+      totalExp: userInfo.value?.exp || 0,
+      pendingArticleCount: articleCountData.pending
     }
+    pendingArticleCount.value = articleCountData.pending
     
     cache.set(cacheKey, userStats.value, cacheExpire)
   } catch (error) {

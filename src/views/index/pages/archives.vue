@@ -66,7 +66,7 @@
         <div class="p-3">
           <!-- 文章头部：标题+元信息 -->
           <header class="article-header">
-            <h1 class="article-title fw-bold mb-3 text-center">{{ articleInfo.title }}</h1>
+            <h1 class="article-title fw-bold mb-3">{{ articleInfo.title }}</h1>
             <!-- 文章元信息：居中布局、弱化样式 -->
             <div class="article-meta d-flex flex-wrap align-items-center justify-content-center text-muted gap-4 fs-6">
               <span class="meta-item d-flex align-items-center">
@@ -204,9 +204,6 @@
                       <p class="text-muted" v-else>未设置支付宝收款码</p>
                     </div>
                   </div>
-                </div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
                 </div>
               </div>
             </div>
@@ -554,6 +551,11 @@ const setCachedUserAction = (articleId, actionType, value) => {
 
 const handleLike = async () => {
   try {
+    if (!isLogin.value) {
+      toast.warning('请登录！')
+      return
+    }
+
     const articleId = articleInfo.value.id
     if (!articleId) return
 
@@ -606,34 +608,35 @@ const handleShare = async () => {
     const articleId = articleInfo.value.id
     if (!articleId) return
 
-    // 准备分享内容：页面标题 + 链接
     const shareContent = `${articleInfo.value.title} ${window.location.href}`
     
-    // 复制到剪贴板
     await navigator.clipboard.writeText(shareContent)
-    
-    // 调用分享API记录经验值
-    const res = await request.post('/api/exp/share', {
-      bind_id: articleId,
-      bind_type: 'article',
-      description: '文章分享'
-    })
 
-    // 显示成功提示
     toast.success('标题和链接已复制到剪贴板！')
 
-    // 更新分享数
-    if (res.code === 200) {
-      shareCount.value = shareCount.value + 1
+    if (isLogin.value) {
+      const res = await request.post('/api/exp/share', {
+        bind_id: articleId,
+        bind_type: 'article',
+        description: '文章分享'
+      })
+
+      if (res.code === 200) {
+        shareCount.value = shareCount.value + 1
+      }
     }
   } catch (error) {
-    // console.error('分享操作失败：', error)
     toast.error('复制失败，请手动复制链接')
   }
 }
 
 const handleCollect = async () => {
   try {
+    if (!isLogin.value) {
+      toast.warning('请登录！')
+      return
+    }
+
     const articleId = articleInfo.value.id
     if (!articleId) return
 
