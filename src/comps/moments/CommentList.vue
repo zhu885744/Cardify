@@ -45,7 +45,9 @@
         />
         <div class="comment-content">
           <div class="comment-header">
-            <span class="comment-nickname">{{ comment.result?.author?.nickname || '未知用户' }}</span>
+            <router-link :to="`/author/${comment.result?.author?.id}`" class="comment-nickname text-body text-primary text-decoration-none">
+              {{ comment.result?.author?.nickname || '未知用户' }}
+            </router-link>
             <span class="comment-time">{{ formatTime(comment.create_time) }}</span>
           </div>
           <p class="comment-text">{{ comment.content }}</p>
@@ -83,7 +85,10 @@
               />
               <div class="reply-content">
                 <div class="reply-header">
-                  <span class="reply-nickname">{{ reply.result?.author?.nickname || '未知用户' }}</span>
+                  <router-link :to="`/author/${reply.result?.author?.id}`" class="comment-nickname text-body text-primary text-decoration-none">
+                    {{ reply.result?.author?.nickname || '未知用户' }}
+                  </router-link>
+                  
                   <span class="reply-time">{{ formatTime(reply.create_time) }}</span>
                 </div>
                 <p class="reply-text">

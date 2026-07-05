@@ -10,7 +10,9 @@
           alt="avatar"
         />
         <div class="flex-grow-1">
-          <div class="fw-semibold text-body">{{ moment.result?.author?.nickname || '未知用户' }}</div>
+          <router-link :to="`/author/${moment.result?.author?.id}`" class="fw-semibold text-body text-primary text-decoration-none">
+            {{ moment.result?.author?.nickname || '未知用户' }}
+          </router-link>
           <div class="text-muted text-xs">{{ formatTime(moment.create_time) }}</div>
         </div>
         <div v-if="isOwner" class="d-flex gap-1">
@@ -31,8 +33,8 @@
         </div>
       </div>
       
-      <!-- 动态内容 -->
-      <p class="text-body text-sm mb-3 leading-relaxed">{{ moment.content }}</p>
+      <!-- 动态内容 - 增加换行处理 -->
+      <p class="text-body text-sm mb-3 leading-relaxed moment-content">{{ moment.content }}</p>
       
       <!-- 图片网格 -->
       <div v-if="moment.images && moment.images.length > 0" class="moment-images-container">
@@ -177,6 +179,13 @@ const formatTime = (timestamp) => {
 </script>
 
 <style scoped>
+/* 动态内容换行处理 */
+.moment-content {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
 .moment-images-container {
   margin-bottom: 12px;
 }
