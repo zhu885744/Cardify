@@ -1,278 +1,120 @@
 <template>
   <div class="moments-container">
-    <div v-if="isLogin" class="card shadow-sm mb-4 mt-2">
-      <div class="card-body">
-        <div class="d-flex align-items-start gap-3">
-          <div class="flex-grow-1">
-            <textarea 
-              v-model="newMoment.content" 
-              class="form-control mb-3" 
-              rows="3" 
-              placeholder="分享你的动态..."
-              maxlength="500"
-            ></textarea>
-            <div v-if="newMoment.images.length > 0" class="d-flex flex-wrap gap-2 mb-3">
-              <div 
-                v-for="(img, index) in newMoment.images" 
-                :key="index" 
-                class="position-relative"
-              >
-                <img :src="img" class="rounded-lg w-20 h-20 object-cover" />
-                <button 
-                  type="button" 
-                  class="btn-close btn-close-white position-absolute top-0 right-0"
-                  @click="removeImage(index)"
-                ></button>
-              </div>
-            </div>
-            <div class="d-flex align-items-center justify-between">
-              <button 
-                type="button" 
-                class="btn btn-outline-secondary btn-sm"
-                @click="triggerImageUpload"
-              >
-                <i class="bi bi-image me-1"></i>
-                添加图片
-              </button>
-              <input 
-                ref="imageInput" 
-                type="file" 
-                multiple 
-                accept="image/*" 
-                class="d-none"
-                @change="handleImageUpload"
-              />
-              <div class="d-flex gap-2">
-                <button 
-                  type="button" 
-                  class="btn btn-outline-secondary btn-sm"
-                  @click="saveMomentDraft"
-                  :disabled="isSubmitting || !newMoment.content.trim()"
-                >
-                  <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1"></span>
-                  保存草稿
-                </button>
-                <button 
-                  type="button" 
-                  class="btn btn-primary btn-sm"
-                  @click="publishMoment"
-                  :disabled="isSubmitting || !newMoment.content.trim()"
-                >
-                  <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1"></span>
-                  发布动态
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- 返回按钮（详情页） -->
+    <div v-if="isDetail" class="mt-2 mb-2">
+      <button 
+        type="button" 
+        class="btn btn-primary btn-sm"
+        @click="goBack"
+      >
+        <i class="bi bi-arrow-left me-1"></i>
+        返回动态列表
+      </button>
     </div>
 
-    <div v-if="editingMoment" class="card shadow-sm mb-4">
-      <div class="card-header bg-body-secondary">
-        <h6 class="mb-0">编辑动态</h6>
-      </div>
-      <div class="card-body">
-        <textarea 
-          v-model="editingMoment.content" 
-          class="form-control mb-3" 
-          rows="3"
-          maxlength="500"
-        ></textarea>
-        <div v-if="editingMoment.images.length > 0" class="d-flex flex-wrap gap-2 mb-3">
-          <div 
-            v-for="(img, index) in editingMoment.images" 
-            :key="index" 
-            class="position-relative"
-          >
-            <img :src="img" class="rounded-lg w-20 h-20 object-cover" />
-            <button 
-              type="button" 
-              class="btn-close btn-close-white position-absolute top-0 right-0"
-              @click="removeEditImage(index)"
-            ></button>
-          </div>
-        </div>
-        <div class="d-flex align-items-center justify-between">
-          <button 
-            type="button" 
-            class="btn btn-outline-secondary btn-sm"
-            @click="triggerEditImageUpload"
-          >
-            <i class="bi bi-image me-1"></i>
-            添加图片
-          </button>
-          <input 
-            ref="editImageInput" 
-            type="file" 
-            multiple 
-            accept="image/*" 
-            class="d-none"
-            @change="handleEditImageUpload"
-          />
-          <div class="d-flex gap-2">
-            <button 
-              type="button" 
-              class="btn btn-secondary btn-sm"
-              @click="cancelEdit"
-            >
-              取消
-            </button>
-            <button 
-              type="button" 
-              class="btn btn-primary btn-sm"
-              @click="updateMoment"
-              :disabled="isSubmitting || !editingMoment.content.trim()"
-            >
-              <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1"></span>
-              保存修改
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 发布编辑器（列表页 + 已登录） -->
+    <MomentEditor
+      v-if="!isDetail && isLogin"
+      mode="create"
+      @published="onMomentPublished"
+      @draft-saved="onMomentPublished"
+    />
 
-    <div v-if="loading && momentList.length === 0" class="text-center py-8">
+    <!-- 编辑编辑器 -->
+    <MomentEditor
+      v-if="editData"
+      mode="edit"
+      :editData="editData"
+      @updated="onMomentUpdated"
+      @cancelled="editData = null"
+    />
+
+    <!-- 详情页加载中 -->
+    <div v-if="isDetail && loading && !singleMoment" class="text-center py-8">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
       <p class="mt-2 text-muted">加载中...</p>
     </div>
 
+    <!-- 详情页不存在 -->
+    <div v-else-if="isDetail && !singleMoment" class="alert alert-light text-center py-8">
+      <i class="bi bi-chat-dots text-4xl text-muted mb-2"></i>
+      <p class="text-muted">动态不存在</p>
+    </div>
+
+    <!-- 详情页 -->
+    <div v-else-if="isDetail && singleMoment" class="moment-detail">
+      <MomentCard
+        :moment="singleMoment"
+        :likeStatus="!!momentLikeStatus[singleMoment.id]"
+        :collectStatus="!!momentCollectStatus[singleMoment.id]"
+        :isOwner="canEdit(singleMoment)"
+        :commentExpanded="expandedCommentId === singleMoment.id"
+        :hideCommentBtn="true"
+        @like="handleLike"
+        @collect="handleCollect"
+        @share="shareMoment"
+        @toggle-comment="toggleComment"
+        @edit="startEdit"
+        @delete="deleteMoment"
+        @preview-image="previewImageSrc = $event"
+      >
+        <template #comments>
+          <CommentList
+            :bindId="singleMoment.id"
+            bindType="moments"
+            @comment-added="singleMoment.comment_count = (singleMoment.comment_count || 0) + 1"
+          />
+        </template>
+      </MomentCard>
+    </div>
+
+    <!-- 列表页加载中 -->
+    <div v-else-if="loading && momentList.length === 0" class="text-center py-8 mt-2">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">加载中...</p>
+    </div>
+
+    <!-- 列表页空状态 -->
     <div v-else-if="momentList.length === 0 && !loading" class="alert alert-light text-center py-8">
       <i class="bi bi-chat-dots text-4xl text-muted mb-2"></i>
       <p class="text-muted">暂无动态内容</p>
     </div>
 
-    <div v-else class="moment-list">
-      <div 
-        v-for="moment in momentList" 
-        :key="moment.id" 
-        class="card rounded-2xl shadow-sm mb-4 overflow-hidden"
+    <!-- 动态列表 -->
+    <div v-else class="moment-list mt-2">
+      <MomentCard
+        v-for="moment in momentList"
+        :key="moment.id"
+        :moment="moment"
+        :likeStatus="!!momentLikeStatus[moment.id]"
+        :collectStatus="!!momentCollectStatus[moment.id]"
+        :isOwner="canEdit(moment)"
+        :commentExpanded="expandedCommentId === moment.id"
+        @like="handleLike"
+        @collect="handleCollect"
+        @share="shareMoment"
+        @toggle-comment="toggleComment"
+        @edit="startEdit"
+        @delete="deleteMoment"
+        @preview-image="previewImageSrc = $event"
       >
-        <div class="card-body p-4">
-          <div class="d-flex align-items-center gap-3 mb-3">
-            <img 
-              :src="moment.result?.author?.avatar || '/static/avatar.png'" 
-              class="rounded-circle w-11 h-11 flex-shrink-0 object-cover"
-              alt="avatar"
-            />
-            <div class="flex-grow-1">
-              <div class="fw-semibold text-body">{{ moment.result?.author?.nickname || '未知用户' }}</div>
-              <div class="text-muted text-xs">{{ formatTime(moment.create_time) }}</div>
-            </div>
-            <div v-if="canEdit(moment)" class="d-flex gap-1">
-              <button 
-                type="button" 
-                class="btn btn-outline-secondary btn-xs"
-                @click="startEdit(moment)"
-              >
-                <i class="bi bi-pencil"></i>
-              </button>
-              <button 
-                type="button" 
-                class="btn btn-outline-danger btn-xs"
-                @click="deleteMoment(moment)"
-              >
-                <i class="bi bi-trash"></i>
-              </button>
-            </div>
-          </div>
-          
-          <p class="text-body text-sm mb-3 leading-relaxed">{{ moment.content }}</p>
-          
-          <div v-if="moment.images && moment.images.length > 0" class="mb-3">
-            <div 
-              :class="[
-                'grid gap-2',
-                moment.images.length === 1 ? 'grid-cols-1' : 
-                moment.images.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
-              ]"
-            >
-              <img 
-                v-for="(img, index) in moment.images.slice(0, 9)" 
-                :key="index" 
-                :src="img" 
-                :class="[
-                  'rounded-xl object-cover cursor-pointer',
-                  moment.images.length === 1 ? 'w-full h-64' : 
-                  moment.images.length === 2 ? 'w-full h-40' : 'w-full h-32'
-                ]"
-                @click="previewImage(img)"
-              />
-            </div>
-          </div>
-          
-          <div v-if="moment.location" class="d-flex align-items-center text-muted text-xs mb-3">
-            <i class="bi bi-geo-alt me-1"></i>
-            {{ moment.location }}
-          </div>
-          
-          <div class="d-flex align-items-center gap-4 pt-3 border-top border-gray-100">
-            <button 
-              type="button" 
-              class="btn btn-link text-muted btn-sm d-flex align-items-center gap-1 p-0"
-              @click="handleLike(moment)"
-            >
-              <i class="bi bi-chat"></i>
-              <span>{{ moment.comment_count || 0 }}</span>
-            </button>
-            <button 
-              type="button" 
-              class="btn btn-link text-muted btn-sm d-flex align-items-center gap-1 p-0"
-              @click="handleLike(moment)"
-            >
-              <i class="bi bi-heart"></i>
-              <span>{{ moment.likes || 0 }}</span>
-            </button>
-            <button 
-              type="button" 
-              class="btn btn-link text-muted btn-sm d-flex align-items-center gap-1 p-0"
-              @click="handleLike(moment)"
-            >
-              <i class="bi bi-star"></i>
-              <span>{{ moment.favorites || 0 }}</span>
-            </button>
-            <button 
-              type="button" 
-              class="btn btn-link text-muted btn-sm d-flex align-items-center gap-1 p-0 ms-auto"
-              @click="shareMoment(moment)"
-            >
-              <i class="bi bi-share"></i>
-              <span>分享</span>
-            </button>
-          </div>
-          
-          <div v-if="moment.likes && moment.likes > 0" class="mt-3 pt-3 border-top border-gray-100">
-            <div class="d-flex align-items-center gap-1">
-              <span class="text-sm"><i class="bi bi-heart-fill text-red-500"></i></span>
-              <span class="text-muted text-xs">{{ moment.likes }} 人觉得很赞</span>
-            </div>
-          </div>
-          
-          <div v-if="moment.id === expandedCommentId" class="mt-3 pt-3 border-top border-gray-100">
-            <div class="input-group">
-              <input 
-                type="text" 
-                v-model="commentContent" 
-                class="form-control form-control-sm rounded-full"
-                placeholder="写下你的评论..."
-                @keyup.enter="submitComment(moment)"
-              />
-              <button 
-                type="button" 
-                class="btn btn-primary btn-sm rounded-full"
-                @click="submitComment(moment)"
-              >
-                发送
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+        <template #comments>
+          <CommentList
+            v-if="expandedCommentId === moment.id"
+            :bindId="moment.id"
+            bindType="moments"
+            @comment-added="moment.comment_count = (moment.comment_count || 0) + 1"
+          />
+        </template>
+      </MomentCard>
     </div>
 
-    <div v-if="!loading && hasMore" class="text-center py-4">
+    <!-- 加载更多 -->
+    <div v-if="!isDetail && !loading && hasMore" class="text-center py-4">
       <button 
         type="button" 
         class="btn btn-outline-secondary"
@@ -284,6 +126,7 @@
       </button>
     </div>
 
+    <!-- 图片预览遮罩 -->
     <div v-if="previewImageSrc" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50" @click="previewImageSrc = ''">
       <img :src="previewImageSrc" class="max-w-full max-h-full" />
     </div>
@@ -291,23 +134,68 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useCommStore } from '@/store/comm'
 import { request } from '@/utils/network'
 import { toast } from '@/utils/app'
 import utils from '@/utils/utils'
+import MomentCard from '@/comps/moments/MomentCard.vue'
+import CommentList from '@/comps/moments/CommentList.vue'
+import MomentEditor from '@/comps/moments/MomentEditor.vue'
 
 const router = useRouter()
 const route = useRoute()
 const store = useCommStore()
 
+// ========== 数据状态 ==========
 const momentList = ref([])
+const singleMoment = ref(null)
 const loading = ref(true)
 const loadingMore = ref(false)
 const hasMore = ref(true)
 const page = ref(1)
 const pageSize = 10
+const editData = ref(null)
+const expandedCommentId = ref(null)
+const previewImageSrc = ref('')
+
+const momentLikeStatus = reactive({})
+const momentCollectStatus = reactive({})
+
+// ========== 用户操作缓存（使用 utils.js） ==========
+const USER_ACTIONS_CACHE_KEY = 'moments_user_actions'
+const USER_ACTIONS_CACHE_EXPIRE = 30
+
+const getCachedUserAction = (momentId, actionType) => {
+  const userId = loggedInUserId.value
+  if (utils.is.empty(momentId) || utils.is.empty(userId)) return null
+  
+  const cacheKey = `${userId}_${momentId}`
+  const cached = utils.get.storage(USER_ACTIONS_CACHE_KEY, cacheKey)
+  
+  if (cached !== 'expire' && cached !== null && cached !== false) {
+    return cached[actionType]
+  }
+  return null
+}
+
+const setCachedUserAction = (momentId, actionType, value) => {
+  const userId = loggedInUserId.value
+  if (utils.is.empty(momentId) || utils.is.empty(userId)) return
+  
+  const cacheKey = `${userId}_${momentId}`
+  const existing = utils.get.storage(USER_ACTIONS_CACHE_KEY, cacheKey)
+  
+  const data = existing !== 'expire' && existing !== null && existing !== false 
+    ? { ...existing, [actionType]: value } 
+    : { [actionType]: value }
+  
+  utils.set.storage(USER_ACTIONS_CACHE_KEY, cacheKey, { ...data, time: USER_ACTIONS_CACHE_EXPIRE })
+}
+
+// ========== 计算属性 ==========
+const isDetail = computed(() => !!route.params.id)
 
 const isLogin = computed(() => {
   const loginState = store.getLogin
@@ -318,234 +206,241 @@ const loggedInUserId = computed(() => {
   return store.login.user?.id
 })
 
-const newMoment = ref({
-  content: '',
-  images: [],
-  location: ''
-})
-
-const editingMoment = ref(null)
-const isSubmitting = ref(false)
-const imageInput = ref(null)
-const editImageInput = ref(null)
-
-const expandedCommentId = ref(null)
-const commentContent = ref('')
-
-const previewImageSrc = ref('')
-
-const formatTime = (timestamp) => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp * 1000)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
-  
-  return date.toLocaleDateString('zh-CN')
-}
-
+// ========== 工具函数 ==========
 const canEdit = (moment) => {
   if (!isLogin.value) return false
   return moment.uid === loggedInUserId.value
 }
 
-const triggerImageUpload = () => {
-  imageInput.value?.click()
-}
+// ========== 查询用户操作状态（参考 archives.vue 实现） ==========
+const checkMomentUserActions = async (momentId) => {
+  if (!isLogin.value || !momentId || !loggedInUserId.value) return
 
-const triggerEditImageUpload = () => {
-  editImageInput.value?.click()
-}
+  const userId = String(loggedInUserId.value)
 
-const handleImageUpload = async (event) => {
-  const files = Array.from(event.target.files || [])
-  for (const file of files) {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      
-      const { code, msg, data } = await request.post('/api/file/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+  // 先查缓存
+  const cachedLiked = getCachedUserAction(momentId, 'isLiked')
+  const cachedCollected = getCachedUserAction(momentId, 'isCollected')
+
+  if (cachedLiked !== null && cachedCollected !== null) {
+    momentLikeStatus[momentId] = cachedLiked
+    momentCollectStatus[momentId] = cachedCollected
+    return
+  }
+
+  try {
+    const [likeRes, collectRes] = await Promise.all([
+      request.get('/api/exp/one', {
+        where: JSON.stringify({
+          uid: userId,
+          type: 'like',
+          bind_id: momentId,
+          bind_type: 'moments',
+          state: 1
+        })
+      }),
+      request.get('/api/exp/one', {
+        where: JSON.stringify({
+          uid: userId,
+          type: 'collect',
+          bind_id: momentId,
+          bind_type: 'moments',
+          state: 1
+        })
       })
-      
-      if (code === 200) {
-        newMoment.value.images.push(data.url)
-      } else {
-        toast.error('上传失败：' + msg)
-      }
-    } catch (error) {
-      toast.error('上传失败：' + error.message)
+    ])
+
+    const isLiked = !!(likeRes.data && likeRes.data.state === 1)
+    const isCollected = !!(collectRes.data && collectRes.data.state === 1)
+
+    momentLikeStatus[momentId] = isLiked
+    momentCollectStatus[momentId] = isCollected
+
+    setCachedUserAction(momentId, 'isLiked', isLiked)
+    setCachedUserAction(momentId, 'isCollected', isCollected)
+  } catch (error) {
+    // 接口查询失败，保持默认 false，不阻塞页面展示
+    if (momentLikeStatus[momentId] === undefined) {
+      momentLikeStatus[momentId] = false
+    }
+    if (momentCollectStatus[momentId] === undefined) {
+      momentCollectStatus[momentId] = false
     }
   }
-  event.target.value = ''
 }
 
-const handleEditImageUpload = async (event) => {
-  const files = Array.from(event.target.files || [])
-  for (const file of files) {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      
-      const { code, msg, data } = await request.post('/api/file/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+// ========== 查询动态点赞/收藏/评论计数 ==========
+const fetchMomentStats = async (momentId) => {
+  if (!momentId) return
+
+  try {
+    const [likeCountRes, collectCountRes, commentCountRes] = await Promise.all([
+      request.get('/api/exp/count', {
+        where: JSON.stringify({
+          type: 'like',
+          bind_id: momentId,
+          bind_type: 'moments',
+          state: 1
+        })
+      }),
+      request.get('/api/exp/count', {
+        where: JSON.stringify({
+          type: 'collect',
+          bind_id: momentId,
+          bind_type: 'moments',
+          state: 1
+        })
+      }),
+      request.get('/api/moments/comment_count', {
+        bind_id: momentId
       })
-      
-      if (code === 200) {
-        editingMoment.value.images.push(data.url)
-      } else {
-        toast.error('上传失败：' + msg)
-      }
-    } catch (error) {
-      toast.error('上传失败：' + error.message)
+    ])
+
+    const likeCount = likeCountRes.data || 0
+    const collectCount = collectCountRes.data || 0
+    const commentCount = commentCountRes.data || 0
+
+    const momentInList = momentList.value.find(m => String(m.id) === String(momentId))
+    if (momentInList) {
+      momentInList.likes = likeCount
+      momentInList.favorites = collectCount
+      momentInList.comment_count = commentCount
     }
-  }
-  event.target.value = ''
-}
 
-const removeImage = (index) => {
-  newMoment.value.images.splice(index, 1)
-}
-
-const removeEditImage = (index) => {
-  editingMoment.value.images.splice(index, 1)
-}
-
-const publishMoment = async () => {
-  if (!newMoment.value.content.trim()) {
-    toast.warning('请输入动态内容')
-    return
-  }
-  
-  isSubmitting.value = true
-  try {
-    const { code, msg } = await request.post('/api/moments/create', {
-      content: newMoment.value.content.trim(),
-      images: newMoment.value.images.join(','),
-      location: newMoment.value.location,
-      status: 1
-    })
-    
-    if (code === 200) {
-      toast.success(msg)
-      newMoment.value = { content: '', images: [], location: '' }
-      loadMoments(true)
-    } else {
-      toast.error(msg)
+    if (singleMoment.value && String(singleMoment.value.id) === String(momentId)) {
+      singleMoment.value.likes = likeCount
+      singleMoment.value.favorites = collectCount
+      singleMoment.value.comment_count = commentCount
     }
+
+    return { likeCount, collectCount, commentCount }
   } catch (error) {
-    toast.error('发布失败：' + error.message)
-  } finally {
-    isSubmitting.value = false
+    console.error('获取动态统计失败:', error)
+    return { likeCount: 0, collectCount: 0, commentCount: 0 }
   }
 }
 
-const saveMomentDraft = async () => {
-  if (!newMoment.value.content.trim()) {
-    toast.warning('请输入动态内容')
-    return
-  }
-  
-  isSubmitting.value = true
-  try {
-    const { code, msg } = await request.post('/api/moments/create', {
-      content: newMoment.value.content.trim(),
-      images: newMoment.value.images.join(','),
-      location: newMoment.value.location,
-      status: 0
-    })
-    
-    if (code === 200) {
-      toast.success(msg)
-      newMoment.value = { content: '', images: [], location: '' }
-    } else {
-      toast.error(msg)
-    }
-  } catch (error) {
-    toast.error('保存失败：' + error.message)
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-const startEdit = (moment) => {
-  editingMoment.value = {
-    id: moment.id,
-    content: moment.content,
-    images: moment.images ? moment.images.split(',') : [],
-    location: moment.location || ''
-  }
-}
-
-const cancelEdit = () => {
-  editingMoment.value = null
-}
-
-const updateMoment = async () => {
-  if (!editingMoment.value.content.trim()) {
-    toast.warning('请输入动态内容')
-    return
-  }
-  
-  isSubmitting.value = true
-  try {
-    const { code, msg } = await request.put('/api/moments/update', {
-      id: editingMoment.value.id,
-      content: editingMoment.value.content.trim(),
-      images: editingMoment.value.images.join(','),
-      location: editingMoment.value.location,
-      status: 1
-    })
-    
-    if (code === 200) {
-      toast.success(msg)
-      editingMoment.value = null
-      loadMoments(true)
-    } else {
-      toast.error(msg)
-    }
-  } catch (error) {
-    toast.error('更新失败：' + error.message)
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-const deleteMoment = async (moment) => {
-  if (!confirm('确定要删除这条动态吗？')) return
-  
-  try {
-    const { code, msg } = await request.delete('/api/moments/remove', {
-      ids: moment.id
-    })
-    
-    if (code === 200) {
-      toast.success(msg)
-      loadMoments(true)
-    } else {
-      toast.error(msg)
-    }
-  } catch (error) {
-    toast.error('删除失败：' + error.message)
-  }
-}
-
-const handleLike = (moment) => {
+// ========== 点赞 / 收藏 / 分享 ==========
+const handleLike = async (moment) => {
   if (!isLogin.value) {
     toast.warning('请登录后再操作')
     return
   }
-  toast.success('点赞成功')
+
+  const momentId = moment.id
+  const userId = String(loggedInUserId.value)
+
+  // 如果本地状态不确定，先查询真实状态
+  if (momentLikeStatus[momentId] === undefined) {
+    await checkMomentUserActions(momentId)
+  }
+
+  const currentStatus = !!momentLikeStatus[momentId]
+  const newStatus = !currentStatus
+
+  // 乐观更新
+  momentLikeStatus[momentId] = newStatus
+  moment.likes = (moment.likes || 0) + (newStatus ? 1 : -1)
+  setCachedUserAction(momentId, 'isLiked', newStatus)
+
+  try {
+    const { code, msg } = await request.post('/api/exp/like', {
+      bind_type: 'moments',
+      bind_id: momentId,
+      state: currentStatus ? 0 : 1,
+      uid: userId,
+      description: '动态点赞'
+    })
+
+    if (code == 200) {
+      toast.success(msg || (newStatus ? '点赞成功！' : '取消点赞成功！'))
+    } else {
+      // 接口失败，回滚状态
+      momentLikeStatus[momentId] = currentStatus
+      moment.likes = (moment.likes || 0) + (currentStatus ? 1 : -1)
+      setCachedUserAction(momentId, 'isLiked', currentStatus)
+      toast.error(msg || '操作失败')
+    }
+  } catch (error) {
+    // 请求异常，回滚状态
+    momentLikeStatus[momentId] = currentStatus
+    moment.likes = (moment.likes || 0) + (currentStatus ? 1 : -1)
+    setCachedUserAction(momentId, 'isLiked', currentStatus)
+    toast.error('操作失败，请稍后重试')
+  }
 }
 
+const handleCollect = async (moment) => {
+  if (!isLogin.value) {
+    toast.warning('请登录后再操作')
+    return
+  }
+
+  const momentId = moment.id
+  const userId = String(loggedInUserId.value)
+
+  // 如果本地状态不确定，先查询真实状态
+  if (momentCollectStatus[momentId] === undefined) {
+    await checkMomentUserActions(momentId)
+  }
+
+  const currentStatus = !!momentCollectStatus[momentId]
+  const newStatus = !currentStatus
+
+  // 乐观更新
+  momentCollectStatus[momentId] = newStatus
+  moment.favorites = (moment.favorites || 0) + (newStatus ? 1 : -1)
+  setCachedUserAction(momentId, 'isCollected', newStatus)
+
+  try {
+    const { code, msg } = await request.post('/api/exp/collect', {
+      bind_type: 'moments',
+      bind_id: momentId,
+      state: currentStatus ? 0 : 1,
+      uid: userId,
+      description: '动态收藏'
+    })
+
+    if (code == 200) {
+      toast.success(msg || (newStatus ? '收藏成功！' : '取消收藏成功！'))
+    } else {
+      // 接口失败，回滚状态
+      momentCollectStatus[momentId] = currentStatus
+      moment.favorites = (moment.favorites || 0) + (currentStatus ? 1 : -1)
+      setCachedUserAction(momentId, 'isCollected', currentStatus)
+      toast.error(msg || '操作失败')
+    }
+  } catch (error) {
+    // 请求异常，回滚状态
+    momentCollectStatus[momentId] = currentStatus
+    moment.favorites = (moment.favorites || 0) + (currentStatus ? 1 : -1)
+    setCachedUserAction(momentId, 'isCollected', currentStatus)
+    toast.error('操作失败，请稍后重试')
+  }
+}
+
+const shareMoment = async (moment) => {
+  const url = `${window.location.origin}/moments/${moment.id}`
+
+  if (isLogin.value) {
+    try {
+      await request.post('/api/exp/share', {
+        bind_type: 'moments',
+        bind_id: moment.id
+      })
+    } catch (error) {
+      console.error('分享经验值失败:', error)
+    }
+  }
+
+  navigator.clipboard.writeText(url).then(() => {
+    toast.success('链接已复制')
+  }).catch(() => {
+    toast.error('复制失败')
+  })
+}
+
+// ========== 评论展开 / 收起 ==========
 const toggleComment = (moment) => {
   if (expandedCommentId.value === moment.id) {
     expandedCommentId.value = null
@@ -554,33 +449,61 @@ const toggleComment = (moment) => {
   }
 }
 
-const submitComment = (moment) => {
-  if (!commentContent.value.trim()) {
-    toast.warning('请输入评论内容')
-    return
+// ========== 编辑 / 删除 ==========
+const startEdit = (moment) => {
+  editData.value = {
+    id: moment.id,
+    content: moment.content,
+    images: Array.isArray(moment.images) ? [...moment.images] : (moment.images ? moment.images.split(',') : []),
+    location: moment.location || ''
   }
-  if (!isLogin.value) {
-    toast.warning('请登录后再评论')
-    return
+}
+
+const deleteMoment = async (moment) => {
+  if (!confirm('确定要删除这条动态吗？')) return
+
+  try {
+    const { code, msg } = await request.delete('/api/moments/remove', {
+      ids: moment.id
+    })
+
+    if (code == 200) {
+      toast.success(msg || '删除成功')
+      if (isDetail.value) {
+        router.push('/moments')
+      } else {
+        loadMoments(true)
+      }
+    } else {
+      toast.error(msg || '删除失败')
+    }
+  } catch (error) {
+    toast.error('删除失败：' + (error.message || '请稍后重试'))
   }
-  toast.success('评论成功')
-  commentContent.value = ''
+}
+
+// ========== 编辑器事件 ==========
+const onMomentPublished = () => {
+  loadMoments(true)
+}
+
+const onMomentUpdated = () => {
+  editData.value = null
+  if (isDetail.value) {
+    loadSingleMoment()
+  } else {
+    loadMoments(true)
+  }
+}
+
+// ========== 导航 ==========
+const goBack = () => {
+  singleMoment.value = null
   expandedCommentId.value = null
+  router.push('/moments')
 }
 
-const shareMoment = (moment) => {
-  const url = `${window.location.origin}${window.location.pathname}#/moments`
-  navigator.clipboard.writeText(url).then(() => {
-    toast.success('链接已复制')
-  }).catch(() => {
-    toast.error('复制失败')
-  })
-}
-
-const previewImage = (src) => {
-  previewImageSrc.value = src
-}
-
+// ========== 数据加载 ==========
 const loadMoments = async (reset = false) => {
   if (reset) {
     page.value = 1
@@ -588,7 +511,7 @@ const loadMoments = async (reset = false) => {
     hasMore.value = true
     loading.value = true
   }
-  
+
   try {
     const { code, msg, data: resData } = await request.get('/api/moments/all', {
       page: page.value,
@@ -596,8 +519,8 @@ const loadMoments = async (reset = false) => {
       order: 'create_time desc',
       where: JSON.stringify({ status: 1 })
     })
-    
-    if (code === 200) {
+
+    if (code == 200) {
       const data = resData.data || []
       data.forEach(item => {
         if (item.images) {
@@ -605,17 +528,29 @@ const loadMoments = async (reset = false) => {
         } else {
           item.images = []
         }
+        if (item.result?.author?.is_liked !== undefined) {
+          momentLikeStatus[item.id] = item.result.author.is_liked
+        }
+        if (item.result?.author?.is_collected !== undefined) {
+          momentCollectStatus[item.id] = item.result.author.is_collected
+        }
       })
-      
+
       if (reset) {
         momentList.value = data
       } else {
         momentList.value = [...momentList.value, ...data]
       }
-      
+
+      // 数据赋值后再查询统计计数（确保能找到对应对象）
+      data.forEach(item => {
+        checkMomentUserActions(item.id)
+        fetchMomentStats(item.id)
+      })
+
       hasMore.value = data.length === pageSize
     } else {
-      toast.error(msg)
+      toast.error(msg || '获取动态失败')
     }
   } catch (error) {
     console.error('获取动态失败:', error)
@@ -626,6 +561,42 @@ const loadMoments = async (reset = false) => {
   }
 }
 
+const loadSingleMoment = async () => {
+  loading.value = true
+  try {
+    const { code, msg, data } = await request.get('/api/moments/one', {
+      id: route.params.id
+    })
+
+    if (code == 200) {
+      if (data.images) {
+        data.images = data.images.split(',').filter(img => img.trim())
+      } else {
+        data.images = []
+      }
+      // 优先用 API 返回的 is_liked/is_collected
+      if (data.result?.author?.is_liked !== undefined) {
+        momentLikeStatus[data.id] = data.result.author.is_liked
+      }
+      if (data.result?.author?.is_collected !== undefined) {
+        momentCollectStatus[data.id] = data.result.author.is_collected
+      }
+      singleMoment.value = data
+      expandedCommentId.value = data.id
+      // 异步查询用户操作状态和统计计数（不阻塞页面展示）
+      checkMomentUserActions(data.id)
+      fetchMomentStats(data.id)
+    } else {
+      toast.error(msg || '获取动态失败')
+    }
+  } catch (error) {
+    console.error('获取动态失败:', error)
+    toast.error('获取动态失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 const loadMore = () => {
   if (loadingMore.value || !hasMore.value) return
   loadingMore.value = true
@@ -633,14 +604,32 @@ const loadMore = () => {
   loadMoments()
 }
 
+// ========== 生命周期 ==========
 onMounted(() => {
-  loadMoments()
+  if (isDetail.value) {
+    loadSingleMoment()
+  } else {
+    loadMoments()
+  }
+})
+
+watch(() => route.params.id, (newId, oldId) => {
+  if (newId) {
+    loadSingleMoment()
+  } else if (oldId) {
+    singleMoment.value = null
+    expandedCommentId.value = null
+    loadMoments(true)
+  }
 })
 </script>
 
 <style scoped>
-
 .moment-list {
+  margin-top: 0;
+}
+
+.moment-detail {
   margin-top: 0;
 }
 </style>

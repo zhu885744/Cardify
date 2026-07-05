@@ -99,6 +99,13 @@ const routes = [
     component: () => import('@/views/index/pages/moments.vue'),
     meta: { title: '动态', requiresAuth: false }
   },
+  {
+    path: '/moments/:id',
+    name: '动态详情',
+    component: () => import('@/views/index/pages/moments.vue'),
+    meta: { title: '动态详情', requiresAuth: false },
+    props: true
+  },
 
   // ========== 分类相关路由 ==========
   {

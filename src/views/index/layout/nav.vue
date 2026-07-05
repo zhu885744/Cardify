@@ -40,6 +40,13 @@
             </router-link>
           </li>
 
+          <!-- 动态 -->
+          <li class="nav-item">
+            <router-link class="nav-link" to="/moments" active-class="active" exact-active-class="active">
+              动态
+            </router-link>
+          </li>
+
           <!-- 分类下拉列表 -->
           <li class="nav-item dropdown" ref="pcDropdownRef">
             <a class="nav-link dropdown-toggle" role="button" aria-expanded="false" data-bs-toggle="dropdown" data-bs-display="static">
@@ -216,6 +223,19 @@
             @click="closeSidebar"
           >
             首页
+          </router-link>
+        </li>
+
+        <!-- 动态 -->
+        <li class="nav-item mb-2">
+          <router-link 
+            class="nav-link" 
+            to="/moments" 
+            active-class="active" 
+            exact-active-class="active"
+            @click="closeSidebar"
+          >
+            动态
           </router-link>
         </li>
 
