@@ -18,146 +18,146 @@
       <!-- 归档页面统计信息 -->
       <div v-if="isArchivePage">
         <!-- 统计信息卡片区域 -->
-          <main class="card shadow-sm mt-2">
-            <div class="p-3">
-              <h2 class="timeline-title mb-4">数据统计</h2>
-              <!-- 统计信息网格 -->
-              <div class="stats-grid">
-                <!-- 文章总数 -->
-                <div class="stat-card">
-                  <div class="stat-icon article-icon">
-                    <i class="bi bi-file-earmark-text"></i>
-                  </div>
-                  <div class="stat-content">
-                    <h3 class="stat-value">{{ archiveStats.articleCount || 0 }}</h3>
-                    <p class="stat-label">文章总数</p>
-                  </div>
+        <main class="card shadow-sm mt-2">
+          <div class="p-3">
+            <h2 class="timeline-title mb-4">数据统计</h2>
+            <!-- 统计信息网格 -->
+            <div class="stats-grid">
+              <!-- 文章总数 -->
+              <div class="stat-card">
+                <div class="stat-icon article-icon">
+                  <i class="bi bi-file-earmark-text"></i>
                 </div>
-
-                <!-- 文章分类总数 -->
-                <div class="stat-card">
-                  <div class="stat-icon category-icon">
-                    <i class="bi bi-tags"></i>
-                  </div>
-                  <div class="stat-content">
-                    <h3 class="stat-value">{{ archiveStats.categoryCount || 0 }}</h3>
-                    <p class="stat-label">文章分类总数</p>
-                  </div>
+                <div class="stat-content">
+                  <h3 class="stat-value">{{ archiveStats.articleCount || 0 }}</h3>
+                  <p class="stat-label">文章总数</p>
                 </div>
+              </div>
 
-            <!-- 独立页面总数 -->
-            <div class="stat-card">
-              <div class="stat-icon page-icon">
-                <i class="bi bi-file-earmark"></i>
+              <!-- 文章分类总数 -->
+              <div class="stat-card">
+                <div class="stat-icon category-icon">
+                  <i class="bi bi-tags"></i>
+                </div>
+                <div class="stat-content">
+                  <h3 class="stat-value">{{ archiveStats.categoryCount || 0 }}</h3>
+                  <p class="stat-label">文章分类总数</p>
+                </div>
               </div>
-              <div class="stat-content">
-                <h3 class="stat-value">{{ archiveStats.pageCount || 0 }}</h3>
-                <p class="stat-label">独立页面总数</p>
+
+              <!-- 独立页面总数 -->
+              <div class="stat-card">
+                <div class="stat-icon page-icon">
+                  <i class="bi bi-file-earmark"></i>
+                </div>
+                <div class="stat-content">
+                  <h3 class="stat-value">{{ archiveStats.pageCount || 0 }}</h3>
+                  <p class="stat-label">独立页面总数</p>
+                </div>
+              </div>
+
+              <!-- 标签总数 -->
+              <div class="stat-card">
+                <div class="stat-icon tag-icon">
+                  <i class="bi bi-tag"></i>
+                </div>
+                <div class="stat-content">
+                  <h3 class="stat-value">{{ archiveStats.tagCount || 0 }}</h3>
+                  <p class="stat-label">标签总数</p>
+                </div>
+              </div>
+
+              <!-- 友情链接总数 -->
+              <div class="stat-card">
+                <div class="stat-icon link-icon">
+                  <i class="bi bi-link"></i>
+                </div>
+                <div class="stat-content">
+                  <h3 class="stat-value">{{ archiveStats.linkCount || 0 }}</h3>
+                  <p class="stat-label">友情链接总数</p>
+                </div>
+              </div>
+
+              <!-- 评论总数 -->
+              <div class="stat-card">
+                <div class="stat-icon comment-icon">
+                  <i class="bi bi-chat"></i>
+                </div>
+                <div class="stat-content">
+                  <h3 class="stat-value">{{ archiveStats.commentCount || 0 }}</h3>
+                  <p class="stat-label">评论总数</p>
+                </div>
               </div>
             </div>
 
-            <!-- 标签总数 -->
-            <div class="stat-card">
-              <div class="stat-icon tag-icon">
-                <i class="bi bi-tag"></i>
+            <!-- 文章归档时间线 -->
+            <div class="archive-timeline mt-6">
+              <h2 class="timeline-title mb-4">文章归档（{{ archiveStats.articleCount || 0 }}篇）</h2>
+              
+              <!-- 加载状态 -->
+              <div v-if="articlesLoading" class="d-flex justify-content-center py-5">
+                <div class="spinner-border text-info" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
               </div>
-              <div class="stat-content">
-                <h3 class="stat-value">{{ archiveStats.tagCount || 0 }}</h3>
-                <p class="stat-label">标签总数</p>
+              
+              <!-- 错误状态 -->
+              <div v-else-if="articlesError" class="alert alert-warning d-flex align-items-center mt-2 p-2" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-4 me-2"></i>
+                <p class="mb-0">{{ articlesErrorMsg }}</p>
               </div>
-            </div>
-
-            <!-- 友情链接总数 -->
-            <div class="stat-card">
-              <div class="stat-icon link-icon">
-                <i class="bi bi-link"></i>
+              
+              <!-- 无文章数据 -->
+              <div v-else-if="Object.keys(groupedArticles).length === 0" class="text-center py-5 text-muted">
+                <i class="bi bi-file-earmark-text fs-1 mb-3"></i>
+                <p class="mb-0">暂无文章数据，敬请期待～</p>
               </div>
-              <div class="stat-content">
-                <h3 class="stat-value">{{ archiveStats.linkCount || 0 }}</h3>
-                <p class="stat-label">友情链接总数</p>
-              </div>
-            </div>
-
-            <!-- 评论总数 -->
-            <div class="stat-card">
-              <div class="stat-icon comment-icon">
-                <i class="bi bi-chat"></i>
-              </div>
-              <div class="stat-content">
-                <h3 class="stat-value">{{ archiveStats.commentCount || 0 }}</h3>
-                <p class="stat-label">评论总数</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- 文章归档时间线 -->
-          <div class="archive-timeline mt-6">
-            <h2 class="timeline-title mb-4">文章归档（{{ archiveStats.articleCount || 0 }}篇）</h2>
-            
-            <!-- 加载状态 -->
-            <div v-if="articlesLoading" class="d-flex justify-content-center py-5">
-              <div class="spinner-border text-info" role="status">
-                <span class="visually-hidden">Loading...</span>
-              </div>
-            </div>
-            
-            <!-- 错误状态 -->
-            <div v-else-if="articlesError" class="alert alert-warning d-flex align-items-center mt-2 p-2" role="alert">
-              <i class="bi bi-exclamation-triangle-fill fs-4 me-2"></i>
-              <p class="mb-0">{{ articlesErrorMsg }}</p>
-            </div>
-            
-            <!-- 无文章数据 -->
-            <div v-else-if="Object.keys(groupedArticles).length === 0" class="text-center py-5 text-muted">
-              <i class="bi bi-file-earmark-text fs-1 mb-3"></i>
-              <p class="mb-0">暂无文章数据，敬请期待～</p>
-            </div>
-            
-            <div v-else class="timeline-container">
-              <div v-for="(articles, yearMonth) in groupedArticles" :key="yearMonth" class="timeline-year-month">
-                <h3 class="timeline-year-month-title">{{ yearMonth }}</h3>
-                <div class="timeline-items">
-                  <div v-for="article in articles" :key="article.id" class="timeline-item">
-                    <div class="timeline-content">
-                      <router-link :to="`/archives/${article.id}`" class="timeline-article-title">{{ article.title }}</router-link>
-                      <div class="timeline-article-meta">
-                        <span class="timeline-article-date d-flex align-items-center">
-                          <i class="bi bi-calendar-date me-1"></i>{{ format(article.publish_time) }}
-                        </span>
-                        <span class="timeline-article-category d-flex align-items-center" v-if="article.result?.group && article.result.group.length > 0">
-                          <i class="bi bi-folder me-1"></i>{{ article.result.group[0].name }}
-                        </span>
-                        <span class="timeline-article-views d-flex align-items-center">
-                          <i class="bi bi-eye me-1"></i>{{ article.views || 0 }}
-                        </span>
+              
+              <div v-else class="timeline-container">
+                <div v-for="(articles, yearMonth) in groupedArticles" :key="yearMonth" class="timeline-year-month">
+                  <h3 class="timeline-year-month-title">{{ yearMonth }}</h3>
+                  <div class="timeline-items">
+                    <div v-for="article in articles" :key="article.id" class="timeline-item">
+                      <div class="timeline-content">
+                        <router-link :to="`/archives/${article.id}`" class="timeline-article-title">{{ article.title }}</router-link>
+                        <div class="timeline-article-meta">
+                          <span class="timeline-article-date d-flex align-items-center">
+                            <i class="bi bi-calendar-date me-1"></i>{{ format(article.publish_time) }}
+                          </span>
+                          <span class="timeline-article-category d-flex align-items-center" v-if="article.result?.group && article.result.group.length > 0">
+                            <i class="bi bi-folder me-1"></i>{{ article.result.group[0].name }}
+                          </span>
+                          <span class="timeline-article-views d-flex align-items-center">
+                            <i class="bi bi-eye me-1"></i>{{ article.views || 0 }}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
+                <div v-if="articlePage.value < articlePageCount.value" class="text-center py-4">
+                  <button 
+                    @click="loadMoreArticles" 
+                    class="btn btn-outline-primary btn-sm"
+                    :disabled="articlesLoading.value"
+                  >
+                    <i class="bi bi-arrow-down-circle me-1"></i>
+                    {{ articlesLoading.value ? '加载中...' : '加载更多文章' }}
+                  </button>
+                </div>
               </div>
-              <div v-if="articlePage.value < articlePageCount.value" class="text-center py-4">
+
+              <!-- 刷新按钮 -->
+              <div class="refresh-container">
                 <button 
-                  @click="loadMoreArticles" 
-                  class="btn btn-outline-primary btn-sm"
-                  :disabled="articlesLoading.value"
+                  @click="refreshArchiveStats" 
+                  class="refresh-btn"
+                  :disabled="refreshingArchive"
                 >
-                  <i class="bi bi-arrow-down-circle me-1"></i>
-                  {{ articlesLoading.value ? '加载中...' : '加载更多文章' }}
+                  <i class="bi bi-arrow-clockwise" :class="{ 'spin': refreshingArchive }"></i>
+                  {{ refreshingArchive ? '刷新中...' : '刷新数据' }}
                 </button>
               </div>
-            </div>
-
-            <!-- 刷新按钮 -->
-            <div class="refresh-container">
-              <button 
-                @click="refreshArchiveStats" 
-                class="refresh-btn"
-                :disabled="refreshingArchive"
-              >
-                <i class="bi bi-arrow-clockwise" :class="{ 'spin': refreshingArchive }"></i>
-                {{ refreshingArchive ? '刷新中...' : '刷新数据' }}
-              </button>
-            </div>
             </div>
           </div>
         </main>
@@ -302,7 +302,7 @@
           <div class="pb-2">
             <!-- 留言统计 -->
             <div class="message-stats mb-6">
-              <div class="card p-4 rounded-3">
+              <div class="card p-4">
                 <div class="row flex-nowrap">
                   <div class="col-md-3 col-sm-6 col-3">
                     <div class="text-center">
@@ -1437,7 +1437,7 @@ const fetchArticles = async () => {
   try {
     const res = await request.get('/api/article/all', {
       page: 1,
-      limit: 50,
+      limit: 9999,
       order: 'create_time desc'
     })
     
@@ -2922,16 +2922,6 @@ onUnmounted(() => {
 
 /* 留言板页面样式 */
 /* 留言统计区域 */
-.message-stats .card {
-  border: 1px solid var(--bs-border-color);
-  transition: all 0.3s ease;
-}
-
-.message-stats .card:hover {
-  box-shadow: var(--bs-box-shadow-lg);
-  border-color: var(--bs-border-color-translucent);
-}
-
 .message-stats .fs-3 {
   font-weight: 700;
   color: var(--bs-body-color);
@@ -3088,16 +3078,6 @@ onUnmounted(() => {
 /* 留言显示模块 */
 .message-display {
   margin-bottom: 2rem;
-}
-
-.message-display .card {
-  border: 1px solid var(--bs-border-color);
-  transition: all 0.3s ease;
-}
-
-.message-display .card:hover {
-  box-shadow: var(--bs-box-shadow-lg);
-  border-color: var(--bs-border-color-translucent);
 }
 
 /* 便利贴样式 */

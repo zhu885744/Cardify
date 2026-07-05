@@ -1,6 +1,6 @@
 <template>
   <!-- 快速发文章模块 -->
-  <div v-if="isLogin" class="mt-2 card shadow-sm rounded">
+  <div v-if="isLogin" class="mt-2 card shadow-sm">
     <div class="card-body p-2">
       <div 
         @click="toggleQuickEditor" 
@@ -112,13 +112,13 @@
   </div>
 
   <!-- 轮播图 -->
-  <div v-if="banners.length > 0 || bannersLoading" class="mt-2 rounded">
+  <div v-if="banners.length > 0 || bannersLoading" class="mt-2">
     <!-- 轮播图加载中 -->
-    <div v-if="bannersLoading" class="carousel-loading card shadow-sm rounded">
+    <div v-if="bannersLoading" class="carousel-loading card shadow-sm">
       <div class="skeleton skeleton-carousel"></div>
     </div>
     <!-- 轮播图内容 -->
-    <div v-else id="carouselExampleControls" class="carousel slide position-relative rounded">
+    <div v-else id="carouselExampleControls" class="carousel slide position-relative">
       <div class="carousel-inner">
         <div 
           v-for="(banner, index) in banners" 
@@ -130,7 +130,7 @@
             <img 
               :src="banner.image" 
               :alt="banner.title" 
-              class="d-block w-100 carousel-img rounded"
+              class="d-block w-100 carousel-img"
             >
           </a>
         </div>

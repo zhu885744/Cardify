@@ -2,7 +2,7 @@
   <div class="author-page-wrapper mt-2">
     <div v-if="loading" class="row g-3">
       <div class="col-12">
-        <div class="card border-0 shadow-sm">
+        <div class="card shadow-sm">
           <div class="card-body">
             <div class="placeholder-glow">
               <div class="placeholder col-12 mb-3" style="height: 160px;"></div>
@@ -21,7 +21,7 @@
       </div>
     </div>
 
-    <div v-else-if="error" class="card border-0 shadow-sm">
+    <div v-else-if="error" class="card shadow-sm">
       <div class="card-body text-center py-5">
         <i class="bi bi-exclamation-circle text-danger" style="font-size: 3rem;"></i>
         <p class="mt-3 text-body-secondary">{{ error }}</p>
@@ -29,7 +29,7 @@
       </div>
     </div>
 
-    <div v-else-if="!userInfo" class="card border-0 shadow-sm">
+    <div v-else-if="!userInfo" class="card shadow-sm">
       <div class="card-body text-center py-5">
         <i class="bi bi-person-x text-body-secondary" style="font-size: 3rem;"></i>
         <p class="mt-3 text-body-secondary">用户不存在</p>
@@ -39,7 +39,7 @@
     <template v-else>
       <div class="row g-3 mb-3">
         <div class="col-12">
-          <div class="card border-0 shadow-sm overflow-hidden">
+          <div class="card shadow-sm overflow-hidden">
             <div class="card-body">
               <div class="d-flex align-items-end gap-3">
                 <div class="position-relative flex-shrink-0">
@@ -139,7 +139,7 @@
 
       <div class="row g-3">
         <div class="col-12">
-          <div class="card border-0 shadow-sm">
+          <div class="card shadow-sm">
             <ul class="nav nav-pills card-header border-bottom px-3 py-2 gap-2">
               <li class="nav-item">
                 <button 
@@ -220,7 +220,7 @@
                     class="col-12 col-sm-6 col-lg-4"
                   >
                     <div 
-                      class="card h-100 border-0 shadow-sm overflow-hidden article-card"
+                      class="card h-100 shadow-sm overflow-hidden article-card"
                     >
                       <div class="article-cover-wrapper" @click="goToArticle(article.id)">
                         <img 
@@ -375,7 +375,7 @@
                       class="col-12 col-sm-6 col-lg-4"
                     >
                       <div 
-                        class="card h-100 border-0 shadow-sm overflow-hidden article-card"
+                        class="card h-100 shadow-sm overflow-hidden article-card"
                         @click="goToArticle(article.id)"
                       >
                         <div class="article-cover-wrapper">
@@ -447,7 +447,7 @@
                       class="col-12 col-sm-6 col-lg-4"
                     >
                       <div 
-                        class="card h-100 border-0 shadow-sm overflow-hidden article-card"
+                        class="card h-100 shadow-sm overflow-hidden article-card"
                         @click="goToArticle(article.id)"
                       >
                         <div class="article-cover-wrapper">
@@ -1582,16 +1582,6 @@ watch(
   overflow: hidden;
 }
 
-.article-card {
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-
-.article-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12) !important;
-}
-
 .article-cover-wrapper {
   width: 100%;
   height: 180px;
@@ -1604,10 +1594,6 @@ watch(
   height: 100%;
   object-fit: cover;
   transition: transform 0.4s ease;
-}
-
-.article-card:hover .article-cover-img {
-  transform: scale(1.05);
 }
 
 .nav-pills .nav-link {
@@ -1628,10 +1614,6 @@ watch(
 
 .nav-pills .nav-link.active .badge {
   background-color: rgba(255, 255, 255, 0.25) !important;
-}
-
-[bs-theme=dark] .article-card:hover {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4) !important;
 }
 
 [bs-theme=dark] .nav-pills .nav-link:hover {

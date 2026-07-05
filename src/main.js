@@ -4,11 +4,12 @@ import { createPinia } from 'pinia'
 import router from './router'
 import { useCommStore } from './store/comm'
 import iSvg from './comps/custom/i-svg.vue'
-import './assets/css/xiao.bootstrap.css'
-import './assets/css/xiao.style.css'
+import './assets/css/bootstrap.css'
+import './assets/css/style.css'
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import '@fancyapps/ui/dist/fancybox/fancybox.css'
 import 'virtual:svg-icons-register'
+import Region from 'v-region'
 import { log, logError, init as setupGlobalTools, setupSiteInfo } from './utils/app'
 
 const createAndConfigureApp = async (isRetry = false) => {
@@ -19,12 +20,16 @@ const createAndConfigureApp = async (isRetry = false) => {
   
   app.use(pinia)
   app.use(router)
+  app.use(Region) // v-region 
+
+  // 全局组件注册
   app.component('iSvg', iSvg)
   
   const commStore = useCommStore()
   
   await router.isReady()
   
+  // 挂载页面
   app.mount('#app')
   
   await Promise.all([

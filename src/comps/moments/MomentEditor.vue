@@ -1,6 +1,6 @@
 <template>
-  <!-- 创建模式 -->
-  <div v-if="mode === 'create'" class="card shadow-sm mb-4 mt-2">
+  <!-- 创建模式（需要发布权限） -->
+  <div v-if="mode === 'create' && canPublish" class="card shadow-sm mb-4 mt-2">
     <div class="card-body">
       <div class="d-flex align-items-start gap-3">
         <div class="flex-grow-1">
@@ -11,15 +11,27 @@
             placeholder="分享你的动态..."
             maxlength="500"
           ></textarea>
-          <div class="input-group mb-3">
-            <span class="input-group-text"><i class="bi bi-geo-alt"></i></span>
-            <input 
-              type="text" 
-              v-model="form.location" 
-              class="form-control form-control-sm"
-              placeholder="添加位置信息..."
+
+          <!-- 近距离层级 RegionSelects 平铺地区选择 -->
+          <div class="mb-3">
+            <label class="form-label small text-secondary">
+              <i class="bi bi-geo-alt me-1"></i>选择位置
+            </label>
+            <RegionSelects
+              v-model="areaCode"
+              :area="false"
+              language="zh-CN"
+              clearable
+              filterable
+              @change="handleAreaChange"
             />
           </div>
+
+          <!-- 已选地址展示（用于调试确认是否选中） -->
+          <div v-if="form.location" class="mb-3 small text-success">
+            已选位置：{{ form.location }}
+          </div>
+
           <div v-if="form.images.length > 0" class="moment-images-container mb-3">
             <div 
               :class="[
@@ -65,15 +77,7 @@
               class="d-none"
               @change="handleImageUpload"
             />
-            <button 
-              type="button" 
-              class="btn btn-outline-secondary btn-sm me-2"
-              @click="handleSaveDraft"
-              :disabled="isSubmitting || !form.content.trim()"
-            >
-              <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1"></span>
-              保存草稿
-            </button>
+            <!-- 删除保存草稿按钮 -->
             <button 
               type="button" 
               class="btn btn-primary btn-sm"
@@ -89,8 +93,16 @@
     </div>
   </div>
 
-  <!-- 编辑模式 -->
-  <div v-else-if="mode === 'edit'" class="card shadow-sm mb-4">
+  <!-- 无权限提示 -->
+  <div v-else-if="mode === 'create' && !canPublish" class="card shadow-sm mb-4 mt-2">
+    <div class="card-body text-center py-3">
+      <i class="bi bi-lock text-muted me-1"></i>
+      <span class="text-muted">无发布权限，请联系管理员</span>
+    </div>
+  </div>
+
+  <!-- 编辑模式（需要发布权限） -->
+  <div v-else-if="mode === 'edit' && canPublish" class="card shadow-sm mb-4">
     <div class="card-header bg-body-secondary">
       <h6 class="mb-0">编辑动态</h6>
     </div>
@@ -101,15 +113,27 @@
         rows="3"
         maxlength="500"
       ></textarea>
-      <div class="input-group mb-3">
-        <span class="input-group-text"><i class="bi bi-geo-alt"></i></span>
-        <input 
-          type="text" 
-          v-model="form.location" 
-          class="form-control form-control-sm"
-          placeholder="添加位置信息..."
+
+      <!-- 近距离层级 RegionSelects -->
+      <div class="mb-3">
+        <label class="form-label small text-secondary">
+          <i class="bi bi-geo-alt me-1"></i>选择位置
+        </label>
+        <RegionSelects
+          v-model="areaCode"
+          :area="false"
+          language="zh-CN"
+          clearable
+          filterable
+          @change="handleAreaChange"
         />
       </div>
+
+      <!-- 已选地址展示 -->
+      <div v-if="form.location" class="mb-3 small text-success">
+        已选位置：{{ form.location }}
+      </div>
+
       <div v-if="form.images.length > 0" class="moment-images-container mb-3">
         <div 
           :class="[
@@ -177,9 +201,24 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { request } from '@/utils/network'
 import { toast } from '@/utils/app'
+import { useCommStore } from '@/store/comm'
+import { RegionSelects } from 'v-region'
+
+const store = useCommStore()
+
+// 权限检查
+const canPublish = computed(() => {
+  const userInfo = store.login.user
+  if (!userInfo) return false
+  const userAuth = userInfo.result?.auth || userInfo?.auth
+  if (!userAuth) return false
+  if (userAuth.all) return true
+  const userGroups = userAuth.group?.list || []
+  return userGroups.some(group => group.key === 'admin')
+})
 
 const props = defineProps({
   mode: {
@@ -193,25 +232,49 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['published', 'draft-saved', 'updated', 'cancelled'])
+// 删除 'draft-saved' 事件
+const emit = defineEmits(['published', 'updated', 'cancelled'])
 
 const imageInput = ref(null)
 const isSubmitting = ref(false)
+// v-model 绑定对象格式，对应省/市/区/街道编码
+const areaCode = ref({
+  province: '',
+  city: '',
+  area: '',
+  town: ''
+})
 
 const form = reactive({
   id: null,
   content: '',
   images: [],
-  location: ''
+  location: '' // 最终提交的纯中文地址
 })
 
-// 编辑模式初始化数据
+// ✅ 修复：适配 RegionSelects 对象格式的变更事件
+const handleAreaChange = (regionObj) => {
+  if (!regionObj) {
+    form.location = ''
+    return
+  }
+  const nameList = []
+  if (regionObj.province?.value) nameList.push(regionObj.province.value)
+  if (regionObj.city?.value) nameList.push(regionObj.city.value)
+  if (regionObj.area?.value) nameList.push(regionObj.area.value)
+  if (regionObj.town?.value) nameList.push(regionObj.town.value)
+  form.location = nameList.join('/')
+}
+
+// 编辑回填
 watch(() => props.editData, (data) => {
   if (props.mode === 'edit' && data) {
     form.id = data.id || null
     form.content = data.content || ''
     form.images = data.images ? [...data.images] : []
     form.location = data.location || ''
+    // 后端仅存文字，无编码对象，编辑时组件不自动高亮，重新选择即可覆盖
+    areaCode.value = { province: '', city: '', area: '', town: '' }
   }
 }, { immediate: true })
 
@@ -221,6 +284,7 @@ const resetForm = () => {
   form.content = ''
   form.images = []
   form.location = ''
+  areaCode.value = { province: '', city: '', area: '', town: '' }
 }
 
 const triggerImageUpload = () => {
@@ -233,18 +297,16 @@ const handleImageUpload = async (event) => {
     try {
       const formData = new FormData()
       formData.append('file', file)
-
       const { code, msg, data } = await request.post('/api/file/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-
-      if (code == 200) {
+      if (code === 200) {
         form.images.push(data.path)
       } else {
         toast.error('上传失败：' + msg)
       }
-    } catch (error) {
-      toast.error('上传失败：' + (error.message || '请稍后重试'))
+    } catch (err) {
+      toast.error('上传失败：' + (err.message || '网络异常'))
     }
   }
   event.target.value = ''
@@ -259,7 +321,6 @@ const handlePublish = async () => {
     toast.warning('请输入动态内容')
     return
   }
-
   isSubmitting.value = true
   try {
     const { code, msg } = await request.post('/api/moments/create', {
@@ -269,57 +330,27 @@ const handlePublish = async () => {
       status: 1,
       publish_time: Math.floor(Date.now() / 1000)
     })
-
-    if (code == 200) {
+    if (code === 200) {
       toast.success(msg || '发布成功')
       resetForm()
       emit('published')
     } else {
       toast.error(msg || '发布失败')
     }
-  } catch (error) {
-    toast.error('发布失败：' + (error.message || '请稍后重试'))
+  } catch (err) {
+    toast.error('发布失败：' + (err.message || '网络异常'))
   } finally {
     isSubmitting.value = false
   }
 }
 
-const handleSaveDraft = async () => {
-  if (!form.content.trim()) {
-    toast.warning('请输入动态内容')
-    return
-  }
-
-  isSubmitting.value = true
-  try {
-    const { code, msg } = await request.post('/api/moments/create', {
-      content: form.content.trim(),
-      images: form.images.join(','),
-      location: form.location,
-      status: 0,
-      publish_time: Math.floor(Date.now() / 1000)
-    })
-
-    if (code == 200) {
-      toast.success(msg || '保存成功')
-      resetForm()
-      emit('draft-saved')
-    } else {
-      toast.error(msg || '保存失败')
-    }
-  } catch (error) {
-    toast.error('保存失败：' + (error.message || '请稍后重试'))
-  } finally {
-    isSubmitting.value = false
-  }
-}
+// 已完整删除 handleSaveDraft 草稿保存函数
 
 const handleUpdate = async () => {
   if (!form.content.trim()) {
     toast.warning('请输入动态内容')
     return
   }
-
   isSubmitting.value = true
   try {
     const { code, msg } = await request.put('/api/moments/update', {
@@ -329,15 +360,14 @@ const handleUpdate = async () => {
       location: form.location,
       status: 1
     })
-
-    if (code == 200) {
-      toast.success(msg || '更新成功')
+    if (code === 200) {
+      toast.success(msg || '修改成功')
       emit('updated')
     } else {
-      toast.error(msg || '更新失败')
+      toast.error(msg || '修改失败')
     }
-  } catch (error) {
-    toast.error('更新失败：' + (error.message || '请稍后重试'))
+  } catch (err) {
+    toast.error('修改失败：' + (err.message || '网络异常'))
   } finally {
     isSubmitting.value = false
   }
@@ -399,5 +429,14 @@ const handleUpdate = async () => {
   aspect-ratio: 1;
   width: 90px;
   height: 90px;
+}
+
+/* 平铺选择器宽度铺满 */
+:deep(.v-region-selects) {
+  width: 100%;
+}
+:deep(.v-region-selects .region-col) {
+  flex: 1;
+  min-width: 120px;
 }
 </style>

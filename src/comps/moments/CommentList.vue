@@ -580,7 +580,6 @@ watch(commentShow, (show) => {
 
 .comment-text {
   font-size: 14px;
-  color: #1f2937;
   line-height: 1.5;
   margin-bottom: 6px;
   word-break: break-word;
@@ -658,7 +657,6 @@ watch(commentShow, (show) => {
 
 .reply-text {
   font-size: 13px;
-  color: #374151;
   line-height: 1.4;
   margin-bottom: 4px;
   word-break: break-word;

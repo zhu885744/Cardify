@@ -64,12 +64,12 @@
         </div>
 
         <!-- 标签卡片网格 -->
-        <div class="tags-grid card shadow-sm mt-2 bg-body rounded-3">
+        <div class="tags-grid card shadow-sm mt-2 bg-body">
           <div class="tags-grid-container">
             <div
               v-for="tag in tags"
               :key="tag.id"
-              class="tag-card card bg-body rounded-3 border border-light shadow-sm"
+              class="tag-card card bg-body border border-light shadow-sm"
               @click="selectTag(tag.id)"
             >
               <div class="tag-card-inner p-4">

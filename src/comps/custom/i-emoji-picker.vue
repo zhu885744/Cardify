@@ -1,5 +1,5 @@
 <template>
-  <div v-if="showPicker" class="emoji-picker-panel border rounded-3 bg-body shadow-sm" :class="{ 'bg-dark border-secondary': isDarkMode }">
+  <div v-if="showPicker" class="emoji-picker-panel border bg-body shadow-sm" :class="{ 'bg-dark border-secondary': isDarkMode }">
     <!-- 表情分类导航 -->
     <ul class="nav nav-pills px-2 pt-2 pb-1" role="tablist">
       <li class="nav-item" v-for="(emojis, category) in owoEmojis" :key="category">

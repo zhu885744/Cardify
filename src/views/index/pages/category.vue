@@ -92,7 +92,7 @@
     <!-- 分类页面主体 -->
     <div v-else class="category-main">
       <!-- 分类信息卡片 -->
-      <div class="category-info card shadow-sm mt-2 rounded-3">
+      <div class="category-info card shadow-sm mt-2">
         <div class="category-info-inner">
           <!-- 分类头像 -->
           <div class="category-info-avatar">

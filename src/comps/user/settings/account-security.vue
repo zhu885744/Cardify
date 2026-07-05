@@ -71,7 +71,7 @@
               </div>
 
               <!-- 修改账号表单 -->
-              <div v-if="showAccountEdit" class="mt-3 p-3 border rounded bg-body-secondary">
+              <div v-if="showAccountEdit" class="mt-3 p-3 border rounded-1 bg-body-secondary">
                 <h6 class="mb-3 text-danger">
                   <i class="bi bi-exclamation-triangle me-2"></i>修改账号后将影响登录，请谨慎操作
                 </h6>

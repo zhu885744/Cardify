@@ -978,16 +978,6 @@ watch(
   font-weight: 600;
 }
 
-/* 下拉菜单 */
-:deep(.dropdown-menu) {
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  padding: 0.375rem;
-  min-width: 160px;
-}
-
 :deep(.dropdown-item) {
   border-radius: 6px;
   padding: 0.5rem 0.875rem;
@@ -1004,32 +994,6 @@ watch(
 :deep(.dropdown-item:active) {
   background-color: var(--bs-primary);
   color: white;
-}
-
-/* 按钮 */
-:deep(.btn) {
-  font-weight: 500;
-  border-radius: 6px;
-  padding: 0.375rem 0.875rem;
-  transition: all 0.2s;
-}
-
-:deep(.btn-outline-secondary) {
-  color: var(--bs-body-color);
-  border-color: var(--bs-border-color);
-}
-
-:deep(.btn-outline-secondary:hover) {
-  background-color: var(--bs-tertiary-bg);
-  border-color: var(--bs-primary);
-  color: var(--bs-primary);
-}
-
-/* 用户下拉按钮 */
-:deep(.btn-outline-secondary.dropdown-toggle) {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
 }
 
 /* LOGO */

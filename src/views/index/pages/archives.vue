@@ -93,7 +93,7 @@
           </div>
 
           <!-- 版权归属信息 -->
-          <div class="border rounded-3 mt-3 p-2">
+          <div class="border rounded-1 mt-3 p-2">
             <!-- 版权归属信息 -->
             <div class="d-flex align-items-center gap-2 mb-1">
               <i class="bi bi-c-circle text-primary fs-6"></i>
