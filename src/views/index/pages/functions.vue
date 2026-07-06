@@ -212,6 +212,25 @@
                         </div>
                       </div>
                     </div>
+                    <div class="col-md-6">
+                      <div class="d-flex align-items-center justify-content-between p-3 bg-body-tertiary rounded">
+                        <div>
+                          <label class="form-label small fw-medium mb-1">快速发布文章</label>
+                          <p class="form-text small mb-0">是否在首页显示快速发布文章模块</p>
+                        </div>
+                        <div class="form-check form-switch">
+                          <input 
+                            class="form-check-input" 
+                            type="checkbox" 
+                            id="quick_publish_switch"
+                            v-model="globalConfig.quick_publish"
+                          >
+                          <label class="form-check-label" for="quick_publish_switch">
+                            {{ globalConfig.quick_publish ? '开启' : '关闭' }}
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1027,8 +1046,8 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useCommStore } from '@/store/comm'
-import { toast, request, usePageTitle } from '@/utils/app'
-import { cache as networkCache } from '@/utils/network'
+import { toast, usePageTitle } from '@/utils/app'
+import { request, cache as networkCache } from '@/utils/network'
 
 const store = useCommStore()
 
@@ -1062,8 +1081,10 @@ function clearXiaoFunctionsCache() {
 }
 
 // 页面标题管理
-const { setDynamicTitle } = usePageTitle()
-setDynamicTitle('站点配置')
+const { setDynamicTitle } = usePageTitle({
+  staticTitle: '站点配置',
+  defaultTitle: '站点配置'
+})
 
 // 响应式数据
 const commentConfig = ref({
@@ -1207,7 +1228,8 @@ async function getGlobalConfig() {
       avatar: config.avatar || '',
       favicon: config.favicon || '',
       date: config.date || Math.floor(Date.now() / 1000).toString(),
-      display_mode: config.display_mode !== false, // 默认值为 true
+      display_mode: config.display_mode !== false,
+      quick_publish: config.quick_publish !== false,
       custom_nav_links: config.custom_nav_links || '', // 自定义导航链接
       copy: {
         code: config.copy?.code || '',

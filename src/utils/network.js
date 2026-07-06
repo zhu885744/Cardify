@@ -1,9 +1,13 @@
 import axios from 'axios'
 import utils from '@/utils/utils'
+import { getSync } from '@/utils/app'
 
 const DEV = import.meta.env.DEV
 const DEFAULT_TIMEOUT = 60 * 1000
 const MAX_RETRY = 2
+const MAX_CACHE_SIZE = 500
+const CACHE_KEY_PREFIX = '__inis_cache_'
+const API_WHITELIST = ['/api/']
 
 const axiosInstance = axios.create({
   timeout: DEFAULT_TIMEOUT,
@@ -18,6 +22,7 @@ const axiosInstance = axios.create({
 class Cache {
   constructor() {
     this.testKey = '__cache_test__'
+    this.maxSize = MAX_CACHE_SIZE
   }
 
   isAvailable() {
@@ -35,7 +40,22 @@ class Cache {
   }
 
   has(key) {
-    return !utils.is.empty(this.get(key))
+    if (!this.isValidKey(key) || !this.isAvailable()) {
+      return false
+    }
+    const rawValue = localStorage.getItem(key)
+    if (rawValue === null || rawValue === '') {
+      return false
+    }
+    try {
+      const parsed = JSON.parse(rawValue)
+      if (this.isExpiredCache(parsed)) {
+        return false
+      }
+      return true
+    } catch {
+      return true
+    }
   }
 
   get(key) {
@@ -59,6 +79,7 @@ class Cache {
 
       return parsed.data !== undefined ? parsed.data : parsed
     } catch (error) {
+      console.warn(`[Cache] 解析缓存失败: ${key}`, error)
       return rawValue || null
     }
   }
@@ -75,6 +96,10 @@ class Cache {
       return
     }
 
+    if (this.size() >= this.maxSize) {
+      this.cleanupOldest()
+    }
+
     const storeValue = value === undefined ? null : value
     
     let dataToStore = storeValue
@@ -83,14 +108,50 @@ class Cache {
     if (!isNaN(expireMinutes) && expireMinutes > 0) {
       dataToStore = {
         data: storeValue,
-        expire: Date.now() + expireMinutes * 60 * 1000
+        expire: Date.now() + expireMinutes * 60 * 1000,
+        timestamp: Date.now()
+      }
+    } else {
+      dataToStore = {
+        data: storeValue,
+        timestamp: Date.now()
       }
     }
 
     try {
       localStorage.setItem(key, JSON.stringify(dataToStore))
     } catch (error) {
+      console.error(`[Cache] 存储失败: ${key}`, error)
+      this.cleanupOldest()
+      try {
+        localStorage.setItem(key, JSON.stringify(dataToStore))
+      } catch (retryError) {
+        console.error(`[Cache] 重试存储仍失败: ${key}`, retryError)
+      }
     }
+  }
+
+  cleanupOldest() {
+    if (!this.isAvailable()) return
+    
+    const keys = this.keys().filter(k => k.startsWith(CACHE_KEY_PREFIX))
+    const cacheItems = []
+    
+    keys.forEach(key => {
+      try {
+        const raw = localStorage.getItem(key)
+        const parsed = JSON.parse(raw)
+        if (parsed && parsed.timestamp) {
+          cacheItems.push({ key, timestamp: parsed.timestamp })
+        }
+      } catch {
+      }
+    })
+    
+    cacheItems.sort((a, b) => a.timestamp - b.timestamp)
+    
+    const itemsToRemove = cacheItems.slice(0, Math.floor(this.maxSize * 0.2))
+    itemsToRemove.forEach(item => this.del(item.key))
   }
 
   setItem(key, value, minutes = 0) {
@@ -116,7 +177,8 @@ class Cache {
     if (!this.isAvailable()) {
       return
     }
-    localStorage.clear()
+    const keys = this.keys().filter(k => k.startsWith(CACHE_KEY_PREFIX))
+    keys.forEach(key => this.del(key))
   }
 
   setMultiple(items) {
@@ -124,16 +186,17 @@ class Cache {
       return false
     }
 
-    let success = true
+    let successCount = 0
     items.forEach(({ key, value, minutes = 0 }) => {
       try {
         this.set(key, value, minutes)
-      } catch {
-        success = false
+        successCount++
+      } catch (error) {
+        console.error(`[Cache] 批量存储失败: ${key}`, error)
       }
     })
     
-    return success
+    return successCount === items.length
   }
 
   getMultiple(keys) {
@@ -176,7 +239,7 @@ class Cache {
     if (!this.isAvailable()) {
       return 0
     }
-    return localStorage.length
+    return this.keys().filter(k => k.startsWith(CACHE_KEY_PREFIX)).length
   }
 
   clearExpired() {
@@ -185,7 +248,7 @@ class Cache {
     }
 
     let clearedCount = 0
-    const keys = this.keys()
+    const keys = this.keys().filter(k => k.startsWith(CACHE_KEY_PREFIX))
     
     keys.forEach(key => {
       const value = localStorage.getItem(key)
@@ -197,6 +260,8 @@ class Cache {
             clearedCount++
           }
         } catch {
+          this.del(key)
+          clearedCount++
         }
       }
     })
@@ -220,27 +285,72 @@ class Cache {
     this.set(key, result, minutes)
     return result
   }
+
+  async memoizeAsync(key, callback, minutes = 0) {
+    const cached = this.get(key)
+    if (cached !== null) {
+      return cached
+    }
+    
+    const result = await callback()
+    this.set(key, result, minutes)
+    return result
+  }
 }
 
 const cache = new Cache()
 
-let baseURL = DEV ? '' : ''
+let baseURL = import.meta.env.VITE_API_URI || ''
+let baseURLPromise = null
+let baseURLResolved = !!baseURL
 
 const initBaseURL = async () => {
-  if (!DEV) {
+  if (baseURLResolved) return
+  
+  if (baseURLPromise) {
+    return baseURLPromise
+  }
+
+  baseURLPromise = (async () => {
     try {
-      const { get } = await import('@/utils/app')
-      const api_uri = await get('api_uri')
+      const api_uri = getSync('api_uri') || import.meta.env.VITE_API_URI
       if (api_uri) {
         baseURL = api_uri
         axiosInstance.defaults.baseURL = api_uri
       }
     } catch (error) {
+      console.error('[Network] 初始化 baseURL 失败:', error)
+    } finally {
+      baseURLResolved = true
     }
-  }
+    return baseURL
+  })()
+
+  return baseURLPromise
 }
 
 initBaseURL()
+
+const waitingQueue = []
+
+const waitForBaseURL = async () => {
+  if (baseURLResolved && baseURL) {
+    return baseURL
+  }
+  
+  if (baseURLPromise) {
+    return baseURLPromise
+  }
+  
+  return new Promise((resolve) => {
+    waitingQueue.push(resolve)
+  })
+}
+
+const resolveWaitingQueue = () => {
+  waitingQueue.forEach(resolve => resolve(baseURL))
+  waitingQueue.length = 0
+}
 
 const logRequest = (method, url, data) => {
   if (DEV) {
@@ -258,6 +368,12 @@ const logError = (method, url, error) => {
   console.error(`[Request Error] ${method.toUpperCase()} ${url}`, error)
 }
 
+const pendingRequests = new Map()
+
+const buildRequestKey = (method, url, data) => {
+  return `${method}:${url}:${JSON.stringify(data)}`
+}
+
 const handleError = (error) => {
   const response = error.response
   const message = response?.data?.msg || response?.statusText || error.message || '请求失败'
@@ -272,11 +388,11 @@ const handleError = (error) => {
   return Promise.reject(errorInfo)
 }
 
-const createCancelToken = () => {
-  return axios.CancelToken.source()
-}
-
-const isRetryable = (error) => {
+const isRetryable = (error, method) => {
+  if (method.toLowerCase() === 'post') {
+    return false
+  }
+  
   if (error?.response) {
     const status = error.response.status
     return status >= 500 || status === 429
@@ -284,93 +400,169 @@ const isRetryable = (error) => {
   return error?.code === 'ECONNABORTED' || !error?.response
 }
 
-const requestWithRetry = async (method, url, dataOrParams, options = {}) => {
-  let attempts = 0
-  let lastError = null
+let isLoggingOut = false
+
+const handleLogout = async () => {
+  if (isLoggingOut) return
   
-  while (attempts <= MAX_RETRY) {
+  isLoggingOut = true
+  
+  try {
+    const TOKEN_NAME = getSync('token_name') || 'INIS_LOGIN_TOKEN'
+    cache.del('user-info')
+    utils.clear.cookie(TOKEN_NAME)
+    
     try {
-      const cancelToken = createCancelToken()
-      const requestConfig = {
-        baseURL: options.baseURL || baseURL,
-        cancelToken: cancelToken.token,
-        ...options
-      }
-
-      if (!DEV && !requestConfig.baseURL) {
-        throw new Error('请在配置文件中设置后端API地址（api_uri）')
-      }
-
-      logRequest(method, url, dataOrParams)
-      
-      let response
-      switch (method.toLowerCase()) {
-        case 'get':
-        case 'delete':
-          response = await axiosInstance[method](url, { params: dataOrParams, ...requestConfig })
-          break
-        case 'post':
-        case 'put':
-        case 'patch':
-          response = await axiosInstance[method](url, dataOrParams, requestConfig)
-          break
-        default:
-          throw new Error(`不支持的请求方法: ${method}`)
-      }
-
-      logResponse(method, url, response, response.status)
-      return response.data
-      
-    } catch (error) {
-      lastError = error
-      attempts++
-      
-      if (error?.code === 'ERR_CANCELED') {
-        throw error
-      }
-
-      if (attempts > MAX_RETRY || !isRetryable(error)) {
-        logError(method, url, error)
-        return handleError(error)
-      }
-
-      const delay = Math.pow(2, attempts) * 1000
-      await new Promise(resolve => setTimeout(resolve, delay))
+      await axios.delete('/api/comm/logout', { withCredentials: true })
+    } catch (err) {
+      console.error('登出接口调用失败：', err)
     }
+    
+    setTimeout(() => {
+      window.location.href = '/login'
+    }, 1500)
+  } finally {
+    setTimeout(() => {
+      isLoggingOut = false
+    }, 3000)
   }
+}
+
+const requestWithRetry = async (method, url, dataOrParams, options = {}) => {
+  await waitForBaseURL()
   
-  return handleError(lastError)
+  if (!DEV && !baseURL) {
+    throw new Error('请在配置文件中设置后端API地址（api_uri）')
+  }
+
+  const { skipRetry = false, skipToken = false, silentError = false } = options
+  
+  const requestKey = buildRequestKey(method, url, dataOrParams)
+  if (!options.skipDuplicate && pendingRequests.has(requestKey)) {
+    return pendingRequests.get(requestKey)
+  }
+
+  const controller = new AbortController()
+  const requestConfig = {
+    baseURL: options.baseURL || baseURL,
+    signal: controller.signal,
+    ...options
+  }
+
+  const requestPromise = (async () => {
+    let attempts = 0
+    let lastError = null
+    
+    while (attempts <= (skipRetry ? 0 : MAX_RETRY)) {
+      try {
+        logRequest(method, url, dataOrParams)
+        
+        let response
+        switch (method.toLowerCase()) {
+          case 'get':
+          case 'delete':
+            response = await axiosInstance[method](url, { params: dataOrParams, ...requestConfig })
+            break
+          case 'post':
+          case 'put':
+          case 'patch':
+            response = await axiosInstance[method](url, dataOrParams, requestConfig)
+            break
+          default:
+            throw new Error(`不支持的请求方法: ${method}`)
+        }
+
+        logResponse(method, url, response, response.status)
+        
+        const responseData = response.data
+        
+        if (responseData?.code === 401) {
+          handleLogout()
+          return Promise.reject({
+            code: 401,
+            message: responseData?.msg || '登录已过期，请重新登录！',
+            data: responseData?.data,
+            url: response.config?.url
+          })
+        }
+
+        if (responseData?.code !== 200 && !silentError) {
+          console.warn(`[Business Error] ${method.toUpperCase()} ${url}`, responseData)
+        }
+        
+        return responseData
+        
+      } catch (error) {
+        lastError = error
+        attempts++
+        
+        if (error?.code === 'ERR_CANCELED' || error?.name === 'AbortError') {
+          throw error
+        }
+
+        if (response?.status === 401 || response?.data?.code === 401) {
+          handleLogout()
+          return Promise.reject({
+            code: 401,
+            message: response?.data?.msg || '登录已过期，请重新登录！',
+            data: response?.data,
+            url: error.config?.url
+          })
+        }
+
+        if (attempts > (skipRetry ? 0 : MAX_RETRY) || !isRetryable(error, method)) {
+          if (!silentError) {
+            logError(method, url, error)
+          }
+          return handleError(error)
+        }
+
+        const delay = Math.pow(2, attempts) * 1000
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+    
+    return handleError(lastError)
+  })()
+
+  pendingRequests.set(requestKey, requestPromise)
+  
+  try {
+    const result = await requestPromise
+    return result
+  } finally {
+    pendingRequests.delete(requestKey)
+  }
 }
 
 axiosInstance.interceptors.request.use(
-  async axiosConfig => {
-    try {
-      const { getSync } = await import('@/utils/app')
-      const apiKey = getSync('api_key') || globalThis?.inis?.api?.key
+  axiosConfig => {
+    const { skipToken = false } = axiosConfig
+
+    if (!skipToken) {
+      const apiKey = getSync('api_key')
       if (!utils.is.empty(apiKey)) {
         axiosConfig.headers['i-api-key'] = apiKey
       }
 
-      const TOKEN_NAME = getSync('token_name') || globalThis?.inis?.token_name || 'INIS_LOGIN_TOKEN'
+      const TOKEN_NAME = getSync('token_name') || 'INIS_LOGIN_TOKEN'
       if (utils.has.cookie(TOKEN_NAME)) {
         const token = utils.get.cookie(TOKEN_NAME)
         if (!utils.is.empty(token)) {
           axiosConfig.headers.Authorization = token
         }
       }
+    }
 
-      axiosConfig.headers['X-CSRF-Token'] = utils.get.cookie('csrf_token') || ''
+    axiosConfig.headers['X-CSRF-Token'] = utils.get.cookie('csrf_token') || ''
 
-      if (!axiosConfig.url || !axiosConfig.url.startsWith('/api/')) {
-        console.warn(`[Security] 请求路径不合法: ${axiosConfig.url}`)
-      }
+    const isValidUrl = API_WHITELIST.some(prefix => axiosConfig.url?.startsWith(prefix))
+    if (!axiosConfig.url || !isValidUrl) {
+      console.warn(`[Security] 请求路径不合法: ${axiosConfig.url}`)
+    }
 
-      // FormData 上传时删除 Content-Type，让浏览器自动设置 multipart/form-data 及 boundary
-      if (axiosConfig.data instanceof FormData) {
-        delete axiosConfig.headers['Content-Type']
-      }
-
-    } catch (error) {
+    if (axiosConfig.data instanceof FormData) {
+      delete axiosConfig.headers['Content-Type']
     }
 
     return axiosConfig
@@ -379,49 +571,13 @@ axiosInstance.interceptors.request.use(
 )
 
 axiosInstance.interceptors.response.use(
-  async response => {
-    const responseData = response.data
-    if (responseData?.code === 401) {
-      const TOKEN_NAME = getSync('token_name') || globalThis?.inis?.token_name || 'INIS_LOGIN_TOKEN'
-      cache.del('user-info')
-      utils.clear.cookie(TOKEN_NAME)
-      
-      try {
-        await axios.delete('/api/comm/logout', { withCredentials: true })
-      } catch (err) {
-        console.error('登出接口调用失败：', err)
-      }
-      
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 1500)
-      
-      return Promise.reject({
-        code: 401,
-        message: responseData?.msg || '登录已过期，请重新登录！',
-        data: responseData?.data,
-        url: response.config?.url
-      })
-    }
+  response => {
     return response
   },
-  async error => {
+  error => {
     const response = error.response
     if (response?.status === 401 || response?.data?.code === 401) {
-      const TOKEN_NAME = getSync('token_name') || globalThis?.inis?.token_name || 'INIS_LOGIN_TOKEN'
-      cache.del('user-info')
-      utils.clear.cookie(TOKEN_NAME)
-      
-      try {
-        await axios.delete('/api/comm/logout', { withCredentials: true })
-      } catch (err) {
-        console.error('登出接口调用失败：', err)
-      }
-      
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 1500)
-      
+      handleLogout()
       return Promise.reject({
         code: 401,
         message: response?.data?.msg || '登录已过期，请重新登录！',
@@ -455,58 +611,106 @@ const request = {
   },
 
   all: async (array) => {
+    await waitForBaseURL()
+    
     if (!DEV && !baseURL) {
       return Promise.reject(new Error('请在配置文件中设置后端API地址（api_uri）'))
     }
-    return axios.all(array)
+    
+    return axios.all(array.map(req => {
+      if (req && typeof req.then === 'function') {
+        return req
+      }
+      return Promise.reject(new Error('request.all 需要传入 Promise 数组'))
+    }))
   },
 
-  createCancelToken,
+  createAbortController: () => new AbortController(),
 
   getBaseURL: () => baseURL,
 
   setBaseURL: (url) => {
     baseURL = url
     axiosInstance.defaults.baseURL = url
+    baseURLResolved = true
+    resolveWaitingQueue()
   },
 
   axios: axiosInstance
 }
 
-const uploadImage = async (callback) => {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
+const uploadImage = async (options = {}) => {
+  const { 
+    maxSize = 5 * 1024 * 1024, 
+    accept = 'image/*',
+    onSuccess, 
+    onError 
+  } = options
 
-  input.addEventListener('change', async () => {
-    if (!input.files || input.files.length === 0) {
-      return
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = accept
+
+    const cleanup = () => {
+      input.removeEventListener('change', handleChange)
+      input.removeEventListener('cancel', cleanup)
+      document.body.removeChild(input)
     }
 
-    const params = new FormData()
-    params.append('file', input.files[0])
-
-    try {
-      const { code, msg, data } = await request.post('/api/file/upload', params, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+    const handleChange = async () => {
+      try {
+        if (!input.files || input.files.length === 0) {
+          cleanup()
+          reject(new Error('未选择文件'))
+          return
         }
-      })
 
-      if (code !== 200) {
-        return
+        const file = input.files[0]
+
+        if (file.size > maxSize) {
+          cleanup()
+          const error = new Error(`文件大小超过限制（最大 ${maxSize / 1024 / 1024}MB）`)
+          if (onError) onError(error)
+          reject(error)
+          return
+        }
+
+        const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        if (!validTypes.includes(file.type)) {
+          cleanup()
+          const error = new Error('只支持 JPG、PNG、GIF、WebP 格式图片')
+          if (onError) onError(error)
+          reject(error)
+          return
+        }
+
+        const params = new FormData()
+        params.append('file', file)
+
+        const result = await request.post('/api/file/upload', params)
+
+        if (result.code !== 200) {
+          const error = new Error(result.msg || '上传失败')
+          if (onError) onError(error)
+          reject(error)
+          return
+        }
+
+        if (onSuccess) onSuccess(result.data.path)
+        resolve(result.data.path)
+      } catch (error) {
+        if (onError) onError(error)
+        reject(error)
+      } finally {
+        cleanup()
       }
-      
-      if (typeof callback === 'function') {
-        callback(data.path)
-      }
-    } catch (error) {
-    } finally {
-      input.value = ''
     }
-  })
 
-  input.click()
+    input.addEventListener('change', handleChange)
+    document.body.appendChild(input)
+    input.click()
+  })
 }
 
 export { cache, request, uploadImage }

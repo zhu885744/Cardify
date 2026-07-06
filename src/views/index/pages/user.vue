@@ -99,8 +99,10 @@ import ContactInfoSettings from '@/comps/user/settings/contact-info.vue'
 import { usePageTitle } from '@/utils/app'
 
 // 使用页面标题管理
-const { setDynamicTitle } = usePageTitle();
-setDynamicTitle('用户设置');
+const { setDynamicTitle } = usePageTitle({
+  staticTitle: '用户设置',
+  defaultTitle: '用户设置'
+})
 
 // 组件挂载时的逻辑
 onMounted(async () => {

@@ -122,12 +122,15 @@ import { request } from '@/utils/network'
 import defaultAvatar from '@/assets/img/avatar.png'
 import { cache } from '@/utils/network'
 import { useCommStore } from '@/store/comm'
+import { usePageTitle } from '@/utils/app'
+
+const { setDynamicTitle } = usePageTitle({
+  staticTitle: '用户列表',
+  defaultTitle: '用户列表'
+})
 
 const router = useRouter()
 const store = useCommStore()
-
-// 环境变量网站标题，兜底处理
-const SITE_TITLE = import.meta.env.VITE_TITLE || '朱某的生活印记'
 
 // 响应式数据
 const loading = ref(false)
@@ -312,7 +315,6 @@ const updateSortedLevels = () => {
 
 // 组件挂载
 onMounted(() => {
-  document.title = `用户列表 - ${store.siteInfo?.title || SITE_TITLE}`
   fetchUsers()
   fetchLevelInfo()
 })

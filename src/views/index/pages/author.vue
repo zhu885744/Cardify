@@ -195,16 +195,6 @@
                   <span>经验明细</span>
                 </button>
               </li>
-              <li class="nav-item" v-if="isOwnProfile">
-                <button 
-                  class="nav-link d-flex align-items-center gap-2" 
-                  :class="{ 'active': activeTab === 'footprint' }"
-                  @click="switchTab('footprint')"
-                >
-                  <i class="bi bi-activity"></i>
-                  <span>互动足迹</span>
-                </button>
-              </li>
             </ul>
 
             <div class="card-body p-3">
@@ -559,73 +549,7 @@
                 </div>
               </div>
 
-              <div v-else-if="activeTab === 'footprint'">
-                <div class="footprint-tabs mb-3">
-                  <button
-                    v-for="item in footprintTypes"
-                    :key="item.key"
-                    class="footprint-tab"
-                    :class="{ active: footprintType === item.key }"
-                    @click="switchFootprintType(item.key)"
-                  >
-                    <i class="bi" :class="item.icon"></i>
-                    <span>{{ item.label }}</span>
-                  </button>
-                </div>
-                <div v-if="footprintLoading" class="text-center py-5">
-                  <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">加载中...</span>
-                  </div>
-                  <p class="text-body-secondary mt-3">加载中...</p>
-                </div>
-                <div v-else-if="footprintRecords.length === 0" class="text-center py-5">
-                  <i class="bi bi-activity text-body-secondary" style="font-size: 3rem;"></i>
-                  <p class="text-body-secondary mt-2">暂无{{ getFootprintTypeName() }}记录</p>
-                </div>
-                <div v-else>
-                  <div class="footprint-list">
-                    <div 
-                      v-for="record in footprintRecords" 
-                      :key="record.id"
-                      class="footprint-item"
-                    >
-                      <div class="footprint-icon" :class="getFootprintIconClass(record.type)">
-                        <i class="bi" :class="getFootprintIcon(record.type)"></i>
-                      </div>
-                      <div class="footprint-info">
-                        <div class="footprint-title">{{ getFootprintTitle(record) }}</div>
-                        <div class="footprint-time">{{ formatters.formatDate(record.create_time) }}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-if="footprintTotalPages > 1" class="d-flex justify-content-center pt-4">
-                    <nav>
-                      <ul class="pagination mb-0">
-                        <li class="page-item" :class="{ disabled: currentFootprintPage <= 1 }">
-                          <button class="page-link" @click.prevent="changeFootprintPage(currentFootprintPage - 1)">
-                            <i class="bi bi-chevron-left"></i>
-                          </button>
-                        </li>
-                        <li 
-                          v-for="page in visibleFootprintPages" 
-                          :key="page" 
-                          class="page-item"
-                          :class="{ active: page === currentFootprintPage, disabled: page === '...' }"
-                        >
-                          <button class="page-link" @click.prevent="page !== '...' && changeFootprintPage(page)">
-                            {{ page }}
-                          </button>
-                        </li>
-                        <li class="page-item" :class="{ disabled: currentFootprintPage >= footprintTotalPages }">
-                          <button class="page-link" @click.prevent="changeFootprintPage(currentFootprintPage + 1)">
-                            <i class="bi bi-chevron-right"></i>
-                          </button>
-                        </li>
-                      </ul>
-                    </nav>
-                  </div>
-                </div>
-              </div>
+
             </div>
           </div>
         </div>
@@ -643,17 +567,16 @@ import utils from '@/utils/utils'
 import defaultAvatar from '@/assets/img/avatar.png'
 import defaultCover from '@/assets/img/fm.avif'
 import { useCommStore } from '@/store/comm'
-import { formatters } from '@/utils/app'
+import { formatters, usePageTitle } from '@/utils/app'
 
 const route = useRoute()
 const router = useRouter()
 const store = useCommStore()
 
-const SITE_TITLE = import.meta.env.VITE_TITLE || 'Xiao-INIS'
-
-const getSiteTitle = () => {
-  return store.siteInfo?.title || SITE_TITLE
-}
+const { setDynamicTitle, setLoadingTitle, setErrorTitle } = usePageTitle({
+  staticTitle: '用户主页',
+  defaultTitle: '用户主页'
+})
 
 const loading = ref(false)
 const error = ref('')
@@ -687,20 +610,6 @@ const expLoading = ref(false)
 const currentExpPage = ref(1)
 const expTotalPages = ref(1)
 const expTotalCount = ref(0)
-
-const footprintRecords = ref([])
-const footprintLoading = ref(false)
-const currentFootprintPage = ref(1)
-const footprintTotalPages = ref(1)
-const footprintType = ref('like')
-
-const footprintTypes = [
-  { key: 'like', label: '点赞', icon: 'bi-heart' },
-  { key: 'collect', label: '收藏', icon: 'bi-bookmark' },
-  { key: 'share', label: '分享', icon: 'bi-share' },
-  { key: 'comment', label: '评论', icon: 'bi-chat-dots' },
-  { key: 'visit', label: '访问', icon: 'bi-eye' },
-]
 
 const userStats = ref({
   articleCount: 0,
@@ -1152,36 +1061,6 @@ const visibleCollectionPages = computed(() => {
   return pages
 })
 
-const visibleFootprintPages = computed(() => {
-  const total = footprintTotalPages.value
-  const current = currentFootprintPage.value
-  const pages = []
-  
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
-    }
-  } else {
-    if (current <= 4) {
-      for (let i = 1; i <= 5; i++) pages.push(i)
-      pages.push('...')
-      pages.push(total)
-    } else if (current >= total - 3) {
-      pages.push(1)
-      pages.push('...')
-      for (let i = total - 4; i <= total; i++) pages.push(i)
-    } else {
-      pages.push(1)
-      pages.push('...')
-      for (let i = current - 1; i <= current + 1; i++) pages.push(i)
-      pages.push('...')
-      pages.push(total)
-    }
-  }
-  
-  return pages
-})
-
 const getExpIcon = (type) => {
   const iconMap = {
     'check-in': 'bi-calendar-check',
@@ -1221,57 +1100,8 @@ const getExpTitle = (record) => {
   return titleMap[record.type] || '经验变动'
 }
 
-const getFootprintIcon = (type) => {
-  const iconMap = {
-    'like': 'bi-heart',
-    'collect': 'bi-bookmark',
-    'share': 'bi-share',
-    'comment': 'bi-chat-dots',
-    'visit': 'bi-eye',
-  }
-  return iconMap[type] || 'bi-activity'
-}
-
-const getFootprintIconClass = (type) => {
-  const classMap = {
-    'like': 'fp-like',
-    'collect': 'fp-collect',
-    'share': 'fp-share',
-    'comment': 'fp-comment',
-    'visit': 'fp-visit',
-  }
-  return classMap[type] || 'fp-default'
-}
-
-const getFootprintTitle = (record) => {
-  if (record.description) {
-    return record.description
-  }
-  if (record.bind_type && record.bind_id) {
-    const typeMap = {
-      'article': '文章',
-      'page': '页面',
-      'comment': '评论',
-    }
-    return `${typeMap[record.bind_type] || '内容'} #${record.bind_id}`
-  }
-  const titleMap = {
-    'like': '点赞了内容',
-    'collect': '收藏了内容',
-    'share': '分享了内容',
-    'comment': '发表了评论',
-    'visit': '访问了页面',
-  }
-  return titleMap[record.type] || '互动记录'
-}
-
-const getFootprintTypeName = () => {
-  const type = footprintTypes.find(t => t.key === footprintType.value)
-  return type ? type.label : ''
-}
-
 const switchTab = (tab) => {
-  if ((tab === 'pending' || tab === 'exp' || tab === 'footprint') && !isOwnProfile.value) {
+  if ((tab === 'pending' || tab === 'exp') && !isOwnProfile.value) {
     return
   }
   activeTab.value = tab
@@ -1285,8 +1115,6 @@ const switchTab = (tab) => {
     fetchUserLikes()
   } else if (tab === 'exp') {
     fetchExpRecords()
-  } else if (tab === 'footprint') {
-    fetchFootprintRecords()
   }
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -1337,51 +1165,6 @@ const changeExpPage = (page) => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const fetchFootprintRecords = async () => {
-  try {
-    if (!userId.value) return
-    
-    footprintLoading.value = true
-    const whereParam = JSON.stringify({ uid: userId.value, type: footprintType.value })
-    const res = await request.get('/api/exp/all', {
-      where: whereParam,
-      page: currentFootprintPage.value,
-      limit: 20,
-      order: 'create_time desc'
-    })
-    
-    if (res.code === 200 && res.data) {
-      if (res.data.data && Array.isArray(res.data.data)) {
-        footprintRecords.value = res.data.data
-        const count = res.data.count || 0
-        footprintTotalPages.value = Math.ceil(count / 20) || 1
-      } else if (Array.isArray(res.data)) {
-        footprintRecords.value = res.data
-        const count = res.count || res.data.length || 0
-        footprintTotalPages.value = Math.ceil(count / 20) || 1
-      } else {
-        footprintRecords.value = []
-        footprintTotalPages.value = 1
-      }
-    } else {
-      footprintRecords.value = []
-      footprintTotalPages.value = 1
-    }
-  } catch (err) {
-    footprintRecords.value = []
-    footprintTotalPages.value = 1
-  } finally {
-    footprintLoading.value = false
-  }
-}
-
-const switchFootprintType = (type) => {
-  footprintType.value = type
-  currentFootprintPage.value = 1
-  footprintRecords.value = []
-  fetchFootprintRecords()
-}
-
 const changeCollectionPage = (page) => {
   if (page < 1 || page > collectionTotalPages.value) return
   currentCollectionPage.value = page
@@ -1395,13 +1178,6 @@ const changeLikePage = (page) => {
   currentLikePage.value = page
   likeArticles.value = []
   fetchUserLikes()
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-const changeFootprintPage = (page) => {
-  if (page < 1 || page > footprintTotalPages.value) return
-  currentFootprintPage.value = page
-  fetchFootprintRecords()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -1522,31 +1298,20 @@ const handleAvatarError = (event) => {
   event.target.src = defaultAvatar
 }
 
-const setPageTitle = (nickname) => {
-  if (nickname) {
-    document.title = `${nickname} - ${getSiteTitle()}`
-  } else {
-    document.title = `用户主页 - ${getSiteTitle()}`
-  }
-}
-
 onMounted(() => {
+  setLoadingTitle()
   fetchUserInfo()
   fetchUserArticles()
   initUserStats()
-})
-
-onUnmounted(() => {
-  document.title = getSiteTitle()
 })
 
 watch(
   () => userInfo.value,
   (newUserInfo) => {
     if (newUserInfo) {
-      setPageTitle(newUserInfo.nickname)
+      setDynamicTitle(newUserInfo.nickname)
     } else {
-      setPageTitle('')
+      setDynamicTitle('用户主页')
     }
   },
   { immediate: true }
@@ -1560,9 +1325,7 @@ watch(
       currentCollectionPage.value = 1
       currentLikePage.value = 1
       currentExpPage.value = 1
-      currentFootprintPage.value = 1
       expRecords.value = []
-      footprintRecords.value = []
       collectionArticles.value = []
       likeArticles.value = []
       fetchUserInfo()
@@ -1722,118 +1485,6 @@ watch(
 
 .exp-value.negative {
   color: #dc3545;
-}
-
-.footprint-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.footprint-tab {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border: 1px solid var(--bs-border-color);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--bs-secondary-color);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.footprint-tab:hover {
-  border-color: var(--bs-primary);
-  color: var(--bs-primary);
-}
-
-.footprint-tab.active {
-  border-color: var(--bs-primary);
-  background: var(--bs-primary);
-  color: white;
-}
-
-.footprint-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.footprint-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--bs-tertiary-bg);
-  transition: all 0.2s;
-}
-
-.footprint-item:hover {
-  background: var(--bs-secondary-bg);
-}
-
-.footprint-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
-.footprint-icon.fp-like {
-  background: rgba(220, 53, 69, 0.15);
-  color: #dc3545;
-}
-
-.footprint-icon.fp-collect {
-  background: rgba(255, 193, 7, 0.15);
-  color: #ffc107;
-}
-
-.footprint-icon.fp-share {
-  background: rgba(25, 135, 84, 0.15);
-  color: #198754;
-}
-
-.footprint-icon.fp-comment {
-  background: rgba(111, 66, 193, 0.15);
-  color: #6f42c1;
-}
-
-.footprint-icon.fp-visit {
-  background: rgba(13, 202, 240, 0.15);
-  color: #0dcaf0;
-}
-
-.footprint-icon.fp-default {
-  background: rgba(108, 117, 125, 0.15);
-  color: #6c757d;
-}
-
-.footprint-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.footprint-title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--bs-body-color);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.footprint-time {
-  font-size: 0.75rem;
-  color: var(--bs-secondary-color);
-  margin-top: 2px;
 }
 
 .pagination .page-link {

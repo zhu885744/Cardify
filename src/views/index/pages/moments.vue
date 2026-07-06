@@ -138,11 +138,16 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useCommStore } from '@/store/comm'
 import { request } from '@/utils/network'
-import { toast } from '@/utils/app'
+import { toast, usePageTitle } from '@/utils/app'
 import utils from '@/utils/utils'
 import MomentCard from '@/comps/moments/MomentCard.vue'
 import CommentList from '@/comps/moments/CommentList.vue'
 import MomentEditor from '@/comps/moments/MomentEditor.vue'
+
+const { setDynamicTitle, setLoadingTitle, setErrorTitle } = usePageTitle({
+  staticTitle: '动态',
+  defaultTitle: '动态'
+})
 
 const router = useRouter()
 const route = useRoute()
@@ -155,7 +160,7 @@ const loading = ref(true)
 const loadingMore = ref(false)
 const hasMore = ref(true)
 const page = ref(1)
-const pageSize = 10
+const pageSize = 5
 const editData = ref(null)
 const expandedCommentId = ref(null)
 const previewImageSrc = ref('')

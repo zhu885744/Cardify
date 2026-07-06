@@ -1,6 +1,6 @@
 <template>
   <!-- 快速发文章模块 -->
-  <div v-if="isLogin" class="mt-2 card shadow-sm">
+  <div v-if="isLogin && quickPublishEnabled" class="mt-2 card shadow-sm">
     <div class="card-body p-2">
       <div 
         @click="toggleQuickEditor" 
@@ -305,8 +305,10 @@ import { useBannerStore } from '@/store/banner'
 import iMdEditor from '@/comps/custom/i-md-editor.vue'
 
 // 使用页面标题管理
-const { setDynamicTitle } = usePageTitle();
-setDynamicTitle('首页');
+const { setDynamicTitle } = usePageTitle({
+  staticTitle: '首页',
+  defaultTitle: '首页'
+})
 
 // 导入本地图片
 import defaultCover from '@/assets/img/fm.avif'
@@ -360,6 +362,8 @@ const isLogin = computed(() => commStore.login.finish && Object.keys(commStore.l
 
 // 显示模式：true为有图模式（网格布局），false为列表模式（列表布局）
 const hasImageMode = ref(true)
+// 快速发布文章开关
+const quickPublishEnabled = ref(true)
 // 轮播图数据
 const banners = ref([])
 const bannersLoading = ref(false)
@@ -370,6 +374,7 @@ const loadDisplayMode = async () => {
     // 优先从 store 读取（siteInfo 已经在应用初始化时缓存过了）
     if (commStore.siteInfo?.display_mode !== undefined) {
       hasImageMode.value = commStore.siteInfo.display_mode !== false
+      quickPublishEnabled.value = commStore.siteInfo.quick_publish !== false
       return
     }
     // 如果 store 没有，再请求 API（兜底）
@@ -377,10 +382,12 @@ const loadDisplayMode = async () => {
     if (response.code === 200 && response.data) {
       const config = response.data.json || {}
       hasImageMode.value = config.display_mode !== false
+      quickPublishEnabled.value = config.quick_publish !== false
     }
   } catch (error) {
     console.error('读取显示模式设置失败:', error)
     hasImageMode.value = true
+    quickPublishEnabled.value = true
   }
 }
 

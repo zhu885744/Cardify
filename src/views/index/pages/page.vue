@@ -768,14 +768,16 @@ import iComment from '@/comps/custom/i-comment.vue'
 import iEmojiPicker from '@/comps/custom/i-emoji-picker.vue'
 import iVirtualScroll from '@/comps/custom/i-virtual-scroll.vue'
 import utils from '@/utils/utils'
-import { cache } from '@/utils/network'
-import { usePageTitle, uploadImage, toast } from '@/utils/app'
+import { cache, uploadImage } from '@/utils/network'
+import { usePageTitle, toast } from '@/utils/app'
 import Sortable from 'sortablejs'
 
 const store = useCommStore()
 
-const { setDynamicTitle } = usePageTitle()
-setDynamicTitle('加载中...')
+const { setDynamicTitle, setLoadingTitle, setErrorTitle } = usePageTitle({
+  staticTitle: '页面',
+  defaultTitle: '独立页面'
+})
 
 const props = defineProps({
   pageKey: {
@@ -974,7 +976,7 @@ const getPageData = async (pageKey) => {
         if (!res.data || Object.keys(res.data).length === 0) {
           error.value = true
           errorMsg.value = '未找到该独立页面，可能已被删除或访问地址错误'
-          setDynamicTitle('页面不存在')
+          setErrorTitle('页面不存在')
         } else {
           cachedPage = res.data
           cache.set(cacheKey, cachedPage, cacheExpire)
@@ -986,7 +988,7 @@ const getPageData = async (pageKey) => {
       } else {
         error.value = true
         errorMsg.value = res.msg || '获取独立页面数据失败'
-        setDynamicTitle('获取页面失败')
+        setErrorTitle('获取失败')
       }
     } else {
       pageInfo.value = cachedPage
@@ -997,7 +999,7 @@ const getPageData = async (pageKey) => {
   } catch (err) {
     error.value = true
     errorMsg.value = '网络异常，请检查网络后刷新页面'
-    setDynamicTitle('网络异常')
+    setErrorTitle('网络异常')
   } finally {
     loading.value = false
   }
@@ -1007,7 +1009,7 @@ const initPage = async () => {
   const key = currentPageKey.value
 
   if (key === 'archive') {
-    setDynamicTitle('加载中...')
+    setLoadingTitle()
     await getArchivePageData()
     await Promise.all([
       fetchArchiveStats(),
@@ -1015,14 +1017,14 @@ const initPage = async () => {
     ])
     startArchiveAutoRefresh()
   } else if (key === 'links') {
-    setDynamicTitle('加载中...')
+    setLoadingTitle()
     await Promise.all([
       getLinksPageData(),
       fetchLinks()
     ])
     await getLinksComments(currentPage.value, pageSize.value)
   } else if (key === 'message') {
-    setDynamicTitle('加载中...')
+    setLoadingTitle()
     await getMessagePageData()
     await Promise.all([
       getComments(pageInfo.value.id, currentPage.value, pageSize.value),
@@ -1033,7 +1035,7 @@ const initPage = async () => {
   } else {
     error.value = true
     loading.value = false
-    setDynamicTitle('页面标识不合法')
+    setErrorTitle('页面标识不合法')
     setTimeout(() => route.goBack(), 3000)
   }
 }
@@ -1712,11 +1714,14 @@ const openLinkApplyModal = async () => {
 }
 
 // 上传网站图标
-const handleUploadAvatar = () => {
-  uploadImage((path) => {
+const handleUploadAvatar = async () => {
+  try {
+    const path = await uploadImage()
     linkForm.value.avatar = path
     toast.success('网站图标上传成功')
-  })
+  } catch (error) {
+    toast.error(error.message || '上传失败')
+  }
 }
 
 // 提交友链申请

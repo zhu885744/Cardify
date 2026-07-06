@@ -273,8 +273,10 @@ const router = useRouter()
 const route = useRoute()
 
 // 页面标题管理
-const { setDynamicTitle } = usePageTitle()
-setDynamicTitle('加载中...')
+const { setDynamicTitle, setLoadingTitle, setErrorTitle } = usePageTitle({
+  staticTitle: '分类',
+  defaultTitle: '分类页面'
+})
 
 // 响应式状态
 const loading = ref(true)                 // 是否处于加载状态
@@ -395,6 +397,7 @@ const getCategoryArticleCount = async (categoryId) => {
  * 获取分类详情
  */
 const getCategoryDetail = async (categoryParam) => {
+  setLoadingTitle()
   loading.value = true
   error.value = false
 
@@ -414,16 +417,17 @@ const getCategoryDetail = async (categoryParam) => {
       } else {
         error.value = true
         errorMsg.value = '未找到该分类'
-        setDynamicTitle('分类不存在')
+        setErrorTitle('分类不存在')
       }
     } else {
       error.value = true
       errorMsg.value = '获取分类列表失败'
+      setErrorTitle('获取失败')
     }
   } catch {
     error.value = true
     errorMsg.value = '网络异常，请稍后重试'
-    setDynamicTitle('网络异常')
+    setErrorTitle('网络异常')
   } finally {
     loading.value = false
   }

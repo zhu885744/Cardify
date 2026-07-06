@@ -12,15 +12,12 @@ import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router
 import { cache } from '@/utils/network'
 import utils from '@/utils/utils'
 import { useCommStore } from '@/store/comm'
+
 const setupRouteTitle = (router) => {
   router.beforeEach((to, from, next) => {
-    if (to.path !== from.path) {
-      // 优先从 store.siteInfo 读取站点标题，兜底使用 .env 配置
-      const store = useCommStore()
-      const siteTitle = store.siteInfo?.title || import.meta.env.VITE_TITLE || 'Xiao-INIS'
-      const pageTitle = to.meta.title || to.name || '未知页面'
-      document.title = `${pageTitle} - ${siteTitle}`
-    }
+    const siteTitle = import.meta.env.VITE_TITLE || 'Xiao-INIS'
+    const pageTitle = to.meta.title || to.name || '未知页面'
+    document.title = `${pageTitle} - ${siteTitle}`
     next()
   })
 }

@@ -342,8 +342,10 @@ const router = useRouter()
 const route = useRoute()
 
 // 页面标题管理
-const { setDynamicTitle } = usePageTitle()
-setDynamicTitle('加载中...')
+const { setDynamicTitle, setLoadingTitle, setErrorTitle } = usePageTitle({
+  staticTitle: '标签',
+  defaultTitle: '标签页面'
+})
 
 // 响应式状态
 const loading = ref(true)                // 是否处于加载状态
@@ -545,6 +547,8 @@ const changeTagPage = (page) => {
 const loadTagFromProps = async (tagId) => {
   if (!tagId) return
 
+  setLoadingTitle()
+
   try {
     const apiUrl = `/api/tags/all?where=${encodeURIComponent(JSON.stringify({ id: tagId }))}&cache=false`
     const res = await request.get(apiUrl)
@@ -562,13 +566,13 @@ const loadTagFromProps = async (tagId) => {
       } else {
         error.value = true
         errorMsg.value = '未找到该标签'
-        setDynamicTitle('标签不存在')
+        setErrorTitle('标签不存在')
       }
     }
   } catch {
     error.value = true
     errorMsg.value = '网络异常，请稍后重试'
-    setDynamicTitle('网络异常')
+    setErrorTitle('网络异常')
   }
 }
 

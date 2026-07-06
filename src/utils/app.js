@@ -1,22 +1,39 @@
 import * as bootstrap from 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import { useTitle as useVueUseTitle } from '@vueuse/core'
-import { computed, watch } from 'vue'
+import { computed, watch, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import utils from '@/utils/utils'
 import router from '@/router/index.js'
 import { request, cache, uploadImage } from '@/utils/network'
 import { useCommStore } from '@/store/comm'
 
-const DEV = import.meta.env.DEV
+const DEV = import.meta.env.DEV || false
+const CONFIG_PREFIX = 'inis_theme_config_'
+const CONFIG_EXPIRE_DAYS = 7
 
 let cachedConfig = null
+let configFetched = false
 
-const getConfigSync = (key, defaultValue = null) => {
-  const localKey = `inis_theme_config_${key}`
+const _readConfigValue = (key, defaultValue) => {
+  if (typeof key !== 'string' || !key.trim()) {
+    return defaultValue
+  }
+  
+  const localKey = `${CONFIG_PREFIX}${key}`
   const localValue = localStorage.getItem(localKey)
+  
   if (localValue !== null) {
     try {
-      return JSON.parse(localValue)
+      const parsed = JSON.parse(localValue)
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.expire && Date.now() > parsed.expire) {
+          localStorage.removeItem(localKey)
+        } else {
+          return parsed.value !== undefined ? parsed.value : parsed
+        }
+      } else {
+        return parsed
+      }
     } catch {
       return localValue
     }
@@ -32,38 +49,41 @@ const getConfigSync = (key, defaultValue = null) => {
   }
 
   return defaultValue
+}
+
+const getConfigSync = (key, defaultValue = null) => {
+  return _readConfigValue(key, defaultValue)
 }
 
 const getConfig = async (key, defaultValue = null) => {
-  const localKey = `inis_theme_config_${key}`
-  const localValue = localStorage.getItem(localKey)
-  if (localValue !== null) {
+  if (!configFetched) {
     try {
-      return JSON.parse(localValue)
-    } catch {
-      return localValue
+      await syncConfigFromAPI()
+    } catch (error) {
+      console.error('[Config] 从接口同步配置失败:', error)
     }
   }
-  
-  const envKey = `VITE_${key.toUpperCase()}`
-  if (import.meta.env[envKey] !== undefined) {
-    return import.meta.env[envKey]
-  }
-
-  if (cachedConfig && cachedConfig[key] !== undefined) {
-    return cachedConfig[key]
-  }
-
-  return defaultValue
+  return _readConfigValue(key, defaultValue)
 }
 
-const setConfig = (key, value) => {
-  const localKey = `inis_theme_config_${key}`
+const setConfig = (key, value, expireDays = CONFIG_EXPIRE_DAYS) => {
+  if (typeof key !== 'string' || !key.trim()) {
+    return
+  }
+  
+  const localKey = `${CONFIG_PREFIX}${key}`
+  
   if (value === null || value === undefined) {
     localStorage.removeItem(localKey)
   } else {
-    localStorage.setItem(localKey, JSON.stringify(value))
+    const dataToStore = {
+      value,
+      expire: expireDays > 0 ? Date.now() + expireDays * 24 * 60 * 60 * 1000 : null,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(localKey, JSON.stringify(dataToStore))
   }
+  
   if (cachedConfig) {
     cachedConfig[key] = value
   }
@@ -81,6 +101,22 @@ const initConfig = () => {
   }
 }
 
+const syncConfigFromAPI = async () => {
+  try {
+    const response = await request.get('/api/config/all')
+    if (response.code === 200 && response.data) {
+      cachedConfig = { ...cachedConfig, ...response.data }
+      Object.entries(response.data).forEach(([key, value]) => {
+        setConfig(key, value)
+      })
+    }
+  } catch (error) {
+    console.error('[Config] 从接口同步配置失败:', error)
+  } finally {
+    configFetched = true
+  }
+}
+
 initConfig()
 
 const getAllConfig = () => {
@@ -92,6 +128,7 @@ const config = {
   getSync: getConfigSync,
   set: setConfig,
   getAll: getAllConfig,
+  sync: syncConfigFromAPI
 }
 
 class Channel {
@@ -101,6 +138,7 @@ class Channel {
     this.onceListeners = new Map()
     this.isClosed = false
     this.messageQueue = []
+    this.unloadRegistered = false
     this.initChannel()
     this.bindUnloadHandler()
   }
@@ -124,18 +162,24 @@ class Channel {
       this.bc = new BroadcastChannel(this.channelName)
       this.bc.onmessage = this.handleMessage.bind(this)
       this.bc.onmessageerror = this.handleError.bind(this)
+      
+      this.flushMessageQueue()
     } catch (error) {
+      console.error('[Channel] 初始化失败:', error)
       this.bc = null
       this.isClosed = true
     }
   }
 
   bindUnloadHandler() {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('beforeunload', () => {
-        this.close()
-      })
+    if (typeof window !== 'undefined' && !this.unloadRegistered) {
+      window.addEventListener('beforeunload', this.handleUnload.bind(this))
+      this.unloadRegistered = true
     }
+  }
+
+  handleUnload() {
+    this.close()
   }
 
   handleMessage(event) {
@@ -144,12 +188,13 @@ class Channel {
     const { type = 'message', data, timestamp = Date.now() } = event.data
     
     const listeners = this.listeners.get(type) || []
-    const onceListeners = this.onceListeners.get(type) || []
+    const onceListeners = [...(this.onceListeners.get(type) || [])]
     
     listeners.forEach(callback => {
       try {
         callback(data, { type, timestamp, channel: this.channelName })
       } catch (error) {
+        console.error('[Channel] 监听器执行失败:', error)
       }
     })
     
@@ -157,6 +202,7 @@ class Channel {
       try {
         callback(data, { type, timestamp, channel: this.channelName })
       } catch (error) {
+        console.error('[Channel] 一次性监听器执行失败:', error)
       }
     })
     
@@ -166,6 +212,20 @@ class Channel {
   }
 
   handleError(event) {
+    console.error('[Channel] 消息错误:', event)
+  }
+
+  flushMessageQueue() {
+    if (!this.bc || this.isClosed) return
+    
+    while (this.messageQueue.length > 0) {
+      const item = this.messageQueue.shift()
+      try {
+        this.bc.postMessage(item)
+      } catch (error) {
+        console.error('[Channel] 发送队列消息失败:', error)
+      }
+    }
   }
 
   on(typeOrCallback, callback) {
@@ -274,7 +334,13 @@ class Channel {
     }
     
     if (!this.bc) {
-      this.messageQueue.push({ type, data, timestamp: Date.now() })
+      this.messageQueue.push({ 
+        type, 
+        data, 
+        timestamp: Date.now(),
+        channel: this.channelName,
+        source: 'channel'
+      })
       return false
     }
     
@@ -290,6 +356,7 @@ class Channel {
       this.bc.postMessage(message)
       return true
     } catch (error) {
+      console.error('[Channel] 发送消息失败:', error)
       return false
     }
   }
@@ -306,70 +373,91 @@ class Channel {
       try {
         this.bc.close()
       } catch (error) {
+        console.error('[Channel] 关闭失败:', error)
       }
       this.bc = null
     }
+    
+    if (typeof window !== 'undefined' && this.unloadRegistered) {
+      window.removeEventListener('beforeunload', this.handleUnload.bind(this))
+      this.unloadRegistered = false
+    }
   }
 
+  static channelInstances = new Map()
+
   static create(name = 'default') {
-    return new Channel(name)
+    const normalizedName = typeof name === 'string' ? name.trim() || 'default' : 'default'
+    
+    if (Channel.channelInstances.has(normalizedName)) {
+      return Channel.channelInstances.get(normalizedName)
+    }
+    
+    const instance = new Channel(normalizedName)
+    Channel.channelInstances.set(normalizedName, instance)
+    return instance
   }
 
   static isSupported() {
     return typeof window !== 'undefined' && !!window.BroadcastChannel
+  }
+
+  static destroy(name) {
+    const instance = Channel.channelInstances.get(name)
+    if (instance) {
+      instance.close()
+      Channel.channelInstances.delete(name)
+    }
   }
 }
 
 const defaultChannel = Channel.create('default')
 const channel = defaultChannel
 
-const createRouteWrapper = (method) => {
-  return function(options, { beforeHandle, afterHandle } = {}) {
-    if (utils.is.empty(options)) {
-      return Promise.reject(new Error('路由跳转参数不能为空'))
-    }
-
-    let removeBeforeEach, removeAfterEach
-
-    if (beforeHandle) {
-      removeBeforeEach = router.beforeEach((to, from, next) => {
-        beforeHandle(to, from)
-        next()
-        removeBeforeEach()
-      })
-    }
-
-    if (afterHandle) {
-      removeAfterEach = router.afterEach((to, from) => {
-        afterHandle(to, from)
-        removeAfterEach()
-      })
-    }
-
-    return new Promise((resolve, reject) => {
-      router[method](options)
-        .then(() => resolve())
-        .catch((err) => {
-          if (err.message?.includes('Avoided redundant navigation to current location')) {
-            resolve()
-          } else {
-            reject(err)
-          }
-        })
-    })
+const push = (options) => {
+  if (utils.is.empty(options)) {
+    return Promise.reject(new Error('路由跳转参数不能为空'))
   }
+  
+  return new Promise((resolve, reject) => {
+    router.push(options)
+      .then(() => resolve())
+      .catch((err) => {
+        if (err.message?.includes('Avoided redundant navigation to current location')) {
+          resolve()
+        } else {
+          reject(err)
+        }
+      })
+  })
 }
 
-const push = createRouteWrapper('push')
-const replace = createRouteWrapper('replace')
+const replace = (options) => {
+  if (utils.is.empty(options)) {
+    return Promise.reject(new Error('路由跳转参数不能为空'))
+  }
+  
+  return new Promise((resolve, reject) => {
+    router.replace(options)
+      .then(() => resolve())
+      .catch((err) => {
+        if (err.message?.includes('Avoided redundant navigation to current location')) {
+          resolve()
+        } else {
+          reject(err)
+        }
+      })
+  })
+}
 
 const goBack = (step = 1) => {
   return new Promise((resolve) => {
-    if (window.history.length <= 1) {
+    const currentRoute = router.currentRoute.value
+    if (currentRoute.matched.length <= 1) {
       push('/').then(() => resolve())
     } else {
       router.go(-step)
-      resolve()
+      setTimeout(resolve, 100)
     }
   })
 }
@@ -394,18 +482,6 @@ const isRouteActive = (path) => {
   return router.currentRoute.value.path === path
 }
 
-const getRouteHistory = () => {
-  try {
-    return JSON.parse(localStorage.getItem('router_history') || '[]')
-  } catch {
-    return []
-  }
-}
-
-const clearRouteHistory = () => {
-  localStorage.removeItem('router_history')
-}
-
 const redirectWithQuery = (path, query = {}) => {
   return push({ path, query })
 }
@@ -423,44 +499,8 @@ const route = {
   getRouteQuery,
   getRouteMeta,
   isRouteActive,
-  getRouteHistory,
-  clearRouteHistory,
   redirectWithQuery,
   redirectWithParams
-}
-
-const menuConfig = {
-  hasIcon: true,
-  iconType: 'svg-icon',
-  menuWidth: 140,
-  customClass: 'dark-howdy-menu scale-up-top-left',
-  menuWrapperCss: {
-    background: '#0b0b0bcc',
-    borderRadius: '8px',
-    padding: '5px 4px',
-    boxShadow: '#00000080 0 10px 30px',
-    lineColor: 'rgba(255,255,255,.1)',
-    lineMargin: '5px 10px',
-    backdropFilter: 'blur(10px)',
-  },
-  menuItemCss: {
-    arrowSize: '10px',
-    iconFontSize: '18px',
-    labelColor: '#FFF',
-    hoverLabelColor: '#FFF',
-    iconColor: '#ffffff00',
-    arrowColor: '#ffffff00'
-  },
-  menuList: [],
-}
-
-const getMenuList = async () => {
-  return []
-}
-
-const menu = {
-  config: menuConfig,
-  getMenuList
 }
 
 const MESSAGE_TYPES = {
@@ -494,6 +534,16 @@ class ToastManager {
     this.container = null
     this.toasts = new Map()
     this.idCounter = 0
+    this.unloadRegistered = false
+    this.bindUnloadHandler()
+  }
+
+  bindUnloadHandler() {
+    if (typeof window !== 'undefined' && !this.unloadRegistered) {
+      window.addEventListener('beforeunload', this.cleanup.bind(this))
+      window.addEventListener('pagehide', this.cleanup.bind(this))
+      this.unloadRegistered = true
+    }
   }
 
   ensureContainer() {
@@ -521,7 +571,7 @@ class ToastManager {
     return titles[type] || '通知'
   }
 
-  show({ message = '', type = MESSAGE_TYPES.INFO, title = '', duration = 3000, closable = true }) {
+  show({ message = '', type = MESSAGE_TYPES.INFO, title = '', duration = 3000, closable = true, position = 'bottom-right' }) {
     if (!message) return { id: null, close: () => {} }
 
     const container = this.ensureContainer()
@@ -579,6 +629,29 @@ class ToastManager {
   error(message, options = {}) {
     return this.show({ ...options, message, type: MESSAGE_TYPES.ERROR })
   }
+
+  cleanup() {
+    this.toasts.forEach(({ toast }) => {
+      try {
+        toast.hide()
+      } catch (error) {
+        console.error('[ToastManager] 清理 toast 失败:', error)
+      }
+    })
+    
+    if (this.container && this.container.parentNode) {
+      this.container.parentNode.removeChild(this.container)
+    }
+    
+    this.toasts.clear()
+    this.container = null
+    
+    if (typeof window !== 'undefined' && this.unloadRegistered) {
+      window.removeEventListener('beforeunload', this.cleanup.bind(this))
+      window.removeEventListener('pagehide', this.cleanup.bind(this))
+      this.unloadRegistered = false
+    }
+  }
 }
 
 const toast = new ToastManager()
@@ -614,8 +687,11 @@ const formatRelativeTime = (timestamp) => {
   if (!timestamp) return ''
   
   const now = Date.now()
-  const date = new Date(timestamp)
-  const time = date.getTime()
+  let time = parseInt(timestamp)
+  
+  if (!isNaN(time) && time < 10000000000) {
+    time *= 1000
+  }
   
   if (isNaN(time)) return ''
   
@@ -682,7 +758,7 @@ const formatters = {
 const validateComment = (content, options = {}) => {
   const { minLength = 1, maxLength = 1000 } = options
   
-  if (!content || !content.trim()) {
+  if (!content || typeof content !== 'string' || !content.trim()) {
     return { valid: false, message: '评论内容不能为空' }
   }
   
@@ -700,7 +776,7 @@ const validateComment = (content, options = {}) => {
 }
 
 const validateUsername = (username) => {
-  if (!username || !username.trim()) {
+  if (!username || typeof username !== 'string' || !username.trim()) {
     return { valid: false, message: '用户名不能为空' }
   }
   
@@ -721,7 +797,7 @@ const validateUsername = (username) => {
 }
 
 const validatePassword = (password) => {
-  if (!password) {
+  if (!password || typeof password !== 'string') {
     return { valid: false, message: '密码不能为空' }
   }
   
@@ -737,7 +813,7 @@ const validatePassword = (password) => {
 }
 
 const validateEmail = (email) => {
-  if (!email) {
+  if (!email || typeof email !== 'string') {
     return { valid: false, message: '邮箱不能为空' }
   }
   
@@ -749,7 +825,15 @@ const validateEmail = (email) => {
   return { valid: true, message: '' }
 }
 
-const checkRateLimit = (lastTime, limitSeconds = 30) => {
+const rateLimitCache = new Map()
+
+const checkRateLimit = (key, limitSeconds = 30) => {
+  if (!key || typeof key !== 'string') {
+    return { allowed: true, remaining: 0 }
+  }
+  
+  const lastTime = rateLimitCache.get(key)
+  
   if (!lastTime) return { allowed: true, remaining: 0 }
   
   const now = Date.now()
@@ -759,7 +843,14 @@ const checkRateLimit = (lastTime, limitSeconds = 30) => {
     return { allowed: false, remaining: Math.ceil(limitSeconds - diff) }
   }
   
+  rateLimitCache.delete(key)
   return { allowed: true, remaining: 0 }
+}
+
+const setRateLimit = (key) => {
+  if (!key || typeof key !== 'string') return
+  
+  rateLimitCache.set(key, Date.now())
 }
 
 const validators = {
@@ -767,22 +858,41 @@ const validators = {
   validateUsername,
   validatePassword,
   validateEmail,
-  checkRateLimit
+  checkRateLimit,
+  setRateLimit
 }
 
-const usePageTitle = () => {
+const getSiteTitle = () => {
+  try {
+    const store = useCommStore()
+    return store.siteInfo?.title || getConfigSync('title') || 'Xiao-INIS'
+  } catch (error) {
+    return getConfigSync('title') || 'Xiao-INIS'
+  }
+}
+
+const setupRouteTitle = (routerInstance) => {
+  routerInstance.beforeEach((to, from, next) => {
+    const siteTitle = getSiteTitle()
+    const pageTitle = to.meta.title || to.name || '未知页面'
+    document.title = `${pageTitle} - ${siteTitle}`
+    next()
+  })
+}
+
+const usePageTitle = (options = {}) => {
+  const {
+    staticTitle = '',
+    defaultTitle = '未知页面'
+  } = options
+  
   const route = useRoute()
   const title = useVueUseTitle('')
   
-  const baseTitle = computed(() => {
-    // 优先从 store.siteInfo 读取站点标题，兜底使用配置或默认值
-    const store = useCommStore()
-    const storeTitle = store?.siteInfo?.title
-    return storeTitle || getConfigSync('title') || 'Xiao-INIS'
-  })
+  const baseTitle = computed(() => getSiteTitle())
   
   const fullTitle = computed(() => {
-    const pageTitle = route.meta.title || route.name || '未知页面'
+    const pageTitle = route.meta.title || route.name || defaultTitle
     return `${pageTitle} - ${baseTitle.value}`
   })
   
@@ -790,25 +900,35 @@ const usePageTitle = () => {
     title.value = newTitle
   }
   
-  watch(
-    () => route.path,
-    () => {
-      setTitle(fullTitle.value)
-    },
-    { immediate: true }
-  )
-  
   const setDynamicTitle = (dynamicTitle, appendBase = true) => {
     if (appendBase) {
-      setTitle(`${dynamicTitle} - ${baseTitle.value}`)
+      title.value = `${dynamicTitle} - ${baseTitle.value}`
     } else {
-      setTitle(dynamicTitle)
+      title.value = dynamicTitle
     }
   }
   
-  const resetTitle = () => {
-    setTitle(fullTitle.value)
+  const setLoadingTitle = (customLoadingText = '加载中...') => {
+    const displayTitle = staticTitle || route.meta.title || route.name || '加载中'
+    title.value = `${displayTitle} - ${customLoadingText}`
   }
+  
+  const setErrorTitle = (customErrorText = '获取失败') => {
+    const displayTitle = staticTitle || route.meta.title || route.name || '错误'
+    title.value = `${displayTitle} - ${customErrorText}`
+  }
+  
+  const resetTitle = () => {
+    title.value = fullTitle.value
+  }
+  
+  watch(
+    () => route.path,
+    () => {
+      resetTitle()
+    },
+    { immediate: true }
+  )
   
   return {
     title,
@@ -816,22 +936,10 @@ const usePageTitle = () => {
     baseTitle,
     setTitle,
     setDynamicTitle,
+    setLoadingTitle,
+    setErrorTitle,
     resetTitle
   }
-}
-
-const setupRouteTitle = (router) => {
-  router.beforeEach((to, from, next) => {
-    if (to.path !== from.path) {
-      // 优先从 store.siteInfo 读取站点标题，兜底使用配置或默认值
-      const store = useCommStore()
-      const storeTitle = store?.siteInfo?.title
-      const siteTitle = storeTitle || getConfigSync('title') || 'Xiao-INIS'
-      const pageTitle = to.meta.title || to.name || '未知页面'
-      document.title = `${pageTitle} - ${siteTitle}`
-    }
-    next()
-  })
 }
 
 const usePageTitleUtil = {
@@ -841,49 +949,108 @@ const usePageTitleUtil = {
 
 const log = (...args) => {
   if (DEV) {
-    console.log('[Init]', new Date().toLocaleTimeString(), ...args)
+    console.log('[App]', new Date().toLocaleTimeString(), ...args)
   }
 }
 
 const logError = (...args) => {
-  console.error('[Init Error]', new Date().toLocaleTimeString(), ...args)
+  console.error('[App Error]', new Date().toLocaleTimeString(), ...args)
+  
+  if (typeof window !== 'undefined' && window.__inis_log_report) {
+    try {
+      window.__inis_log_report({
+        level: 'error',
+        message: args.map(arg => 
+          typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+        ).join(' '),
+        timestamp: Date.now()
+      })
+    } catch (reportError) {
+      console.error('[App] 日志上报失败:', reportError)
+    }
+  }
 }
 
-const init = async (app) => {
-  try {
-    const [bootstrapModule, fancyboxModule, apiModule] = await Promise.all([
-      import('bootstrap/dist/js/bootstrap.bundle.min.js'),
-      import('@fancyapps/ui/dist/fancybox/'),
-      import('@/api')
-    ])
-    
-    const { default: bootstrap } = bootstrapModule
-    const { Fancybox } = fancyboxModule
-    const { default: API } = apiModule
-    
-    if (typeof window !== 'undefined' && bootstrap) {
-      window.bootstrap = bootstrap
-    }
-    
-    if (API) {
-      app.config.globalProperties.$api = API
-    }
-    
-    if (Fancybox) {
-      window.Fancybox = Fancybox
-      
-      setTimeout(() => {
-        Fancybox.bind("[data-fancybox]", {
-          Hash: false,
-          Thumbs: { autoStart: false }
-        })
-      }, 100)
-    }
-    
-    return { API, Fancybox }
-  } catch (error) {
-    return {}
+const registerLogReporter = (reporter) => {
+  if (typeof window !== 'undefined' && typeof reporter === 'function') {
+    window.__inis_log_report = reporter
   }
+}
+
+let initPromise = null
+
+const init = async (app, options = {}) => {
+  if (initPromise) {
+    return initPromise
+  }
+  
+  const { 
+    bootstrap: loadBootstrap = true, 
+    fancybox: loadFancybox = true, 
+    api: loadApi = true,
+    onProgress 
+  } = options
+  
+  initPromise = (async () => {
+    try {
+      const modules = []
+      
+      if (loadBootstrap) {
+        modules.push(import('bootstrap/dist/js/bootstrap.bundle.min.js').then(({ default: bs }) => ({ name: 'bootstrap', value: bs })))
+      }
+      
+      if (loadFancybox) {
+        modules.push(import('@fancyapps/ui/dist/fancybox/').then(({ Fancybox }) => ({ name: 'fancybox', value: Fancybox })))
+      }
+      
+      if (loadApi) {
+        modules.push(import('@/api').then(({ default: API }) => ({ name: 'api', value: API })))
+      }
+      
+      const results = await Promise.all(modules)
+      
+      results.forEach(({ name, value }) => {
+        if (onProgress) {
+          onProgress(name, 'loaded')
+        }
+        
+        switch (name) {
+          case 'bootstrap':
+            if (value && typeof window !== 'undefined') {
+              window.bootstrap = value
+            }
+            break
+          case 'api':
+            if (value) {
+              app.config.globalProperties.$api = value
+            }
+            break
+          case 'fancybox':
+            if (value && typeof window !== 'undefined') {
+              window.Fancybox = value
+              setTimeout(() => {
+                value.bind("[data-fancybox]", {
+                  Hash: false,
+                  Thumbs: { autoStart: false }
+                })
+              }, 100)
+            }
+            break
+        }
+      })
+      
+      return {
+        bootstrap: loadBootstrap ? bootstrap : null,
+        Fancybox: loadFancybox ? (results.find(r => r.name === 'fancybox')?.value || null) : null,
+        API: loadApi ? (results.find(r => r.name === 'api')?.value || null) : null
+      }
+    } catch (error) {
+      logError('初始化失败:', error)
+      return {}
+    }
+  })()
+  
+  return initPromise
 }
 
 const setupSiteInfo = async (commStore) => {
@@ -902,6 +1069,7 @@ const setupSiteInfo = async (commStore) => {
     
     return true
   } catch (error) {
+    logError('设置站点信息失败:', error)
     return false
   }
 }
@@ -911,7 +1079,6 @@ const app = {
   channel: defaultChannel,
   Channel,
   route,
-  menu,
   toast,
   formatters,
   validators,
@@ -919,9 +1086,7 @@ const app = {
   init,
   setupSiteInfo,
   MESSAGE_TYPES,
-  request,
-  cache,
-  uploadImage
+  registerLogReporter
 }
 
 export {
@@ -931,7 +1096,6 @@ export {
   channel,
   Channel,
   route,
-  menu,
   toast,
   formatters,
   validators,
@@ -942,14 +1106,13 @@ export {
   MESSAGE_TYPES,
   log,
   logError,
+  registerLogReporter,
   checkRateLimit,
+  setRateLimit,
   validateComment,
   validateUsername,
   validatePassword,
-  validateEmail,
-  request,
-  cache,
-  uploadImage
+  validateEmail
 }
 
 export default app

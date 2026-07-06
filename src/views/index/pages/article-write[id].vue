@@ -229,12 +229,19 @@ const store = {
     comm: useCommStore(),
 }
 
-const { setDynamicTitle } = usePageTitle()
+const { setDynamicTitle, setLoadingTitle } = usePageTitle({
+  staticTitle: '',
+  defaultTitle: '文章'
+})
 
 const updatePageTitle = () => {
     const id = route.params?.id
     if (id) {
-        setDynamicTitle(`编辑文章 - ${state.struct.title || '加载中...'}`)
+        if (state.struct.title) {
+            setDynamicTitle(`编辑文章 - ${state.struct.title}`)
+        } else {
+            setLoadingTitle('编辑文章')
+        }
     } else {
         setDynamicTitle('撰写文章')
     }

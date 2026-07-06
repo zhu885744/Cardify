@@ -697,6 +697,11 @@ const toggleSidebar = () => {
     initOffcanvas()
   }
   
+  if (!offcanvasInstance) {
+    console.warn('[Nav] 侧边栏实例初始化失败')
+    return
+  }
+  
   if (sidebarOpen.value) {
     offcanvasInstance.hide()
   } else {

@@ -53,11 +53,11 @@ body {
   min-height: 100vh;
   background-color: #cdcdcd;
   color: var(--bs-body-color);
-  font-family: var(--bs-font-sans-serif);
+  font-family: 'Cabin Sketch', cursive;
 }
 
 .width {
-  max-width: 900px; 
+  max-width: 1000px; 
   margin: 0 auto; 
 }
 
@@ -67,7 +67,6 @@ body {
 
 .article-content {
   line-height: 1.6;
-  font-family: var(--bs-font-sans-serif);
   word-break: break-word;
   font-weight: 400;
   font-size: 1rem;

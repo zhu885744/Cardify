@@ -417,7 +417,7 @@ import { useCommStore } from '@/store/comm'
 import { request, uploadImage } from '@/utils/network'
 import { toast } from '@/utils/app'
 import iEmojiPicker from './i-emoji-picker.vue'
-import { validateComment, checkRateLimit as checkRateLimitUtil } from '@/utils/app'
+import { validateComment, checkRateLimit as checkRateLimitUtil, setRateLimit } from '@/utils/app'
 import utils from '@/utils/utils'
 import { STORAGE_KEYS } from '@/constants'
 
@@ -653,7 +653,7 @@ const checkRateLimit = () => {
   const rateLimit = commentConfig.value.rate_limit || {}
   if (rateLimit.enabled !== 1) return true
   
-  const result = checkRateLimitUtil(lastCommentTime.value * 1000, rateLimit.time_window || 60)
+  const result = checkRateLimitUtil('comment_rate_limit', rateLimit.time_window || 60)
   
   if (!result.allowed) {
     toast.error(`评论过于频繁，请等待 ${result.remaining} 秒后再试`)
@@ -666,6 +666,7 @@ const checkRateLimit = () => {
 const saveCommentTime = () => {
   const currentTime = Date.now() / 1000
   lastCommentTime.value = currentTime
+  setRateLimit('comment_rate_limit')
   try {
     localStorage.setItem(STORAGE_KEYS.LAST_COMMENT_TIME, currentTime.toString())
   } catch (error) {
@@ -909,16 +910,20 @@ const closeImageModal = () => {
   showCustomUrlInput.value = false
 }
 
-const handleUploadImage = () => {
+const handleUploadImage = async () => {
   if (uploadingImage.value) return
   uploadingImage.value = true
 
-  uploadImage((path) => {
+  try {
+    const path = await uploadImage()
     imageUrl.value = path
     previewImage.value = path
-    uploadingImage.value = false
     toast.success('图片上传成功')
-  })
+  } catch (error) {
+    toast.error(error.message || '上传失败')
+  } finally {
+    uploadingImage.value = false
+  }
 }
 
 const applyCustomImageUrl = () => {

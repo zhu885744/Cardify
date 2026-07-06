@@ -253,7 +253,10 @@ import utils from '@/utils/utils'
 import { cache } from '@/utils/network'
 import { usePageTitle, toast } from '@/utils/app'
 
-const { setDynamicTitle } = usePageTitle()
+const { setDynamicTitle, setLoadingTitle, setErrorTitle } = usePageTitle({
+  staticTitle: '文章',
+  defaultTitle: '文章详情'
+})
 
 const commStore = useCommStore()
 
@@ -341,6 +344,7 @@ const checkArticleId = (id) => {
 
 const getArticleDetail = async (id) => {
   loading.value = true
+  setLoadingTitle()
   try {
     const cacheKey = `article_detail_${id}`
     const cacheExpire = 60
@@ -355,7 +359,7 @@ const getArticleDetail = async (id) => {
         if (!res.data || Object.keys(res.data).length === 0) {
           error.value = true
           errorMsg.value = '未找到该文章，可能已被删除或ID错误'
-          setDynamicTitle('文章不存在')
+          setErrorTitle('文章不存在')
         } else {
           cachedArticle = res.data
           cache.set(cacheKey, cachedArticle, cacheExpire)
@@ -366,7 +370,7 @@ const getArticleDetail = async (id) => {
       } else {
         error.value = true
         errorMsg.value = res.msg || '获取文章详情失败'
-        setDynamicTitle('获取文章失败')
+        setErrorTitle('获取失败')
       }
     } else {
       articleInfo.value = cachedArticle
@@ -383,7 +387,7 @@ const getArticleDetail = async (id) => {
   } catch (err) {
     error.value = true
     errorMsg.value = '网络异常，请检查网络后刷新页面'
-    setDynamicTitle('网络异常')
+    setErrorTitle('网络异常')
   } finally {
     loading.value = false
   }
