@@ -220,7 +220,7 @@ import utils from '@/utils/utils'
 import { request, cache } from '@/utils/network'
 import IMdEditor from '@/comps/custom/i-md-editor.vue'
 import { useCommStore } from '@/store/comm'
-import { usePageTitle } from '@/utils/app'
+import { usePageTitle, getSync } from '@/utils/app'
 import { toast } from '@/utils/app'
 
 const route = useRoute()
@@ -569,26 +569,28 @@ const method = {
             if (!files || files.length === 0) return
 
             try {
+                const formData = new FormData()
                 for (let i = 0; i < files.length; i++) {
-                    const file = files[i]
-                    const formData = new FormData()
-                    formData.append('file', file)
+                    formData.append('files', files[i])
+                }
 
-                    const { code, msg, data } = await request.post('/api/file/upload', formData, {
-                        headers: method.headers()
+                const { code, msg, data } = await request.post('/api/attachment/batch', formData, {
+                    headers: method.headers()
+                })
+
+                if (code !== 200) {
+                    return toast.error('上传失败：' + msg)
+                }
+
+                if (data?.results) {
+                    data.results.forEach((result) => {
+                        if (result.full_url) {
+                            state.item.cover.preview.push({
+                                name: result.original_name || '图片',
+                                url: result.full_url
+                            })
+                        }
                     })
-
-                    if (code !== 200) {
-                        toast.error('上传失败：' + msg)
-                        continue
-                    }
-
-                    if (data?.path) {
-                        state.item.cover.preview.push({
-                            name: file.name,
-                            url: data.path
-                        })
-                    }
                 }
             } catch (error) {
                 console.error('上传图片失败:', error)

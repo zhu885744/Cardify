@@ -195,6 +195,7 @@ const scopes = [
   { key: 'tag', label: '标签', icon: 'bi bi-tag' },
   { key: 'links', label: '友链', icon: 'bi bi-link' },
   { key: 'users', label: '用户', icon: 'bi bi-person' },
+  { key: 'moments', label: '动态', icon: 'bi bi-chat-dots' },
 ]
 
 const hotSearches = [
@@ -329,8 +330,9 @@ const getSearchPlaceholder = () => {
     tag: '搜索标签...',
     links: '搜索友链...',
     users: '搜索用户...',
+    moments: '搜索动态...',
   }
-  return map[searchScope.value] || '搜索文章、页面、标签、友链或用户...'
+  return map[searchScope.value] || '搜索文章、页面、标签、友链、用户或动态...'
 }
 
 const handleInput = () => {
@@ -411,13 +413,17 @@ const performSearch = async () => {
       case 'users':
         results = await searchUsers(query)
         break
+      case 'moments':
+        results = await searchMoments(query)
+        break
       default: {
-        const [articleResults, pageResults, tagResults, linksResults, usersResults] = await Promise.all([
+        const [articleResults, pageResults, tagResults, linksResults, usersResults, momentsResults] = await Promise.all([
           searchArticles(query),
           searchPages(query),
           searchTags(query),
           searchLinks(query),
-          searchUsers(query)
+          searchUsers(query),
+          searchMoments(query)
         ])
 
         const optimizedResults = []
@@ -447,6 +453,11 @@ const performSearch = async () => {
         }
         if (tagResults.length > 0) {
           tagResults.slice(0, 3).forEach(item => {
+            if (!seenIds.has(item.id)) { seenIds.add(item.id); optimizedResults.push(item) }
+          })
+        }
+        if (momentsResults.length > 0) {
+          momentsResults.forEach(item => {
             if (!seenIds.has(item.id)) { seenIds.add(item.id); optimizedResults.push(item) }
           })
         }
@@ -522,6 +533,17 @@ const searchUsers = async (keyword) => {
   } catch { return [] }
 }
 
+const searchMoments = async (keyword) => {
+  try {
+    const { code, data } = await request.get(`/api/search/moments?keyword=${encodeURIComponent(keyword)}&page=1&limit=50`)
+    if (code === 200 && data) {
+      const arr = data.data?.data || data.data
+      if (Array.isArray(arr)) return arr.map(item => ({ ...item, type: 'moments' }))
+    }
+    return []
+  } catch { return [] }
+}
+
 const getResultIcon = (type) => {
   const map = {
     article: 'bi bi-file-earmark-text',
@@ -529,18 +551,22 @@ const getResultIcon = (type) => {
     tag: 'bi bi-tag',
     links: 'bi bi-link',
     users: 'bi bi-person',
+    moments: 'bi bi-chat-dots',
   }
   return map[type] || 'bi bi-search'
 }
 
 const getResultTypeName = (type) => {
-  const map = { article: '文章', page: '页面', tag: '标签', links: '友链', users: '用户' }
+  const map = { article: '文章', page: '页面', tag: '标签', links: '友链', users: '用户', moments: '动态' }
   return map[type] || '未知'
 }
 
 const getResultTitle = (result) => {
   if (result.type === 'users' || result.type === 'links') {
     return result.nickname || result.name || result.title || '未知'
+  }
+  if (result.type === 'moments') {
+    return result.content ? result.content.substring(0, 20) + (result.content.length > 20 ? '...' : '') : '动态'
   }
   return result.title || result.name || '未知'
 }
@@ -572,6 +598,9 @@ const navigateToResult = (result) => {
       break
     case 'users':
       if (result.id) router.push(`/author/${result.id}`)
+      break
+    case 'moments':
+      if (result.id) router.push(`/moments/${result.id}`)
       break
   }
 }
@@ -907,6 +936,7 @@ defineExpose({ show, hide })
 .result-icon-bar-tag { background: linear-gradient(135deg, #10b981, #34d399); }
 .result-icon-bar-links { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
 .result-icon-bar-users { background: linear-gradient(135deg, #ec4899, #f472b6); }
+.result-icon-bar-moments { background: linear-gradient(135deg, #06b6d4, #22d3ee); }
 
 .result-content {
   flex-grow: 1;
@@ -940,6 +970,7 @@ defineExpose({ show, hide })
 .result-type-tag { background: #10b981; }
 .result-type-links { background: #f59e0b; }
 .result-type-users { background: #ec4899; }
+.result-type-moments { background: #06b6d4; }
 
 .result-desc {
   font-size: 0.8125rem;

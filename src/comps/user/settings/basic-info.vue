@@ -158,7 +158,9 @@
             </button>
             <p class="text-muted small mt-3 mb-0">
               <i class="bi bi-info-circle me-1"></i>
-              支持 JPG、PNG、GIF 格式，最大 10MB
+              支持 JPG、PNG、GIF 格式，建议 1:1 比例
+              同时上传头像后请点击「保存修改」按钮才能正常应用头像否则无法显示！！
+              点击保存修改后页面将自动刷新，头像即可正常显示。
             </p>
           </div>
         </div>
@@ -294,7 +296,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch, nextTick } from 'vue'
 import { request } from '@/utils/network'
-import { toast } from '@/utils/app'
+import { toast, getSync } from '@/utils/app'
 import { useCommStore } from '@/store/comm'
 import defaultAvatar from '@/assets/img/avatar.png'
 import Cropper from 'cropperjs'
@@ -459,14 +461,14 @@ const uploadCroppedImage = async () => {
     const params = new FormData()
     params.append('file', blob, 'avatar.jpg')
     
-    const { code, msg, data } = await request.post('/api/file/upload', params, {
+    const { code, msg, data } = await request.post('/api/attachment/batch', params, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     })
     
     if (code === 200) {
-      formData.avatar = data.path
+      formData.avatar = data.results?.[0]?.full_url || ''
       toast.success('头像上传成功，请点击"保存修改"完成更新')
       closeCropperModal()
     } else {
@@ -533,6 +535,9 @@ const updateBasicInfo = async () => {
       toast.success('用户信息更新成功')
       await syncUserInfo()
       Object.assign(originalData, { ...formData })
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
     } else {
       toast.error(res.msg || '用户信息更新失败')
     }

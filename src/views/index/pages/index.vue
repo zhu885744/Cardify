@@ -146,6 +146,35 @@
     </div>
   </div>
 
+  <!-- 随机动态 -->
+  <div v-if="randomMoment" class="mt-2 card shadow-sm">
+    <div class="card-body p-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="d-flex align-items-center gap-2 text-secondary">
+          <i class="bi bi-shuffle"></i>
+          <span class="text-sm">随机动态「点击可跳转」</span>
+        </span>
+        <button 
+          @click="fetchRandomMoment" 
+          class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+          :disabled="momentLoading"
+        >
+          <i class="bi bi-arrow-clockwise" :class="{ 'spinner-grow spinner-grow-sm': momentLoading }"></i>
+          <span>刷新</span>
+        </button>
+      </div>
+      <div 
+        @click="goToMoment(randomMoment.id)"
+        class="cursor-pointer hover-bg-secondary rounded-lg p-2 transition-colors"
+      >
+        <p class="text-body mb-2 line-clamp-2">{{ randomMoment.content }}</p>
+        <div class="d-flex align-items-center gap-3 text-body-secondary">
+          <span>{{ formatters.formatDate(randomMoment.create_time) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 加载状态 -->
   <div v-if="loading && articleList.length === 0" class="article-list-container mt-2">
     <!-- 骨架加载 -->
@@ -298,7 +327,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { request } from '@/utils/network'
-import { usePageTitle, toast } from '@/utils/app'
+import { usePageTitle, toast, formatters } from '@/utils/app'
 import { cache } from '@/utils/network'
 import { useCommStore } from '@/store/comm'
 import { useBannerStore } from '@/store/banner'
@@ -367,6 +396,10 @@ const quickPublishEnabled = ref(true)
 // 轮播图数据
 const banners = ref([])
 const bannersLoading = ref(false)
+
+// 随机动态数据
+const randomMoment = ref(null)
+const momentLoading = ref(false)
 
 // 从后端API获取显示模式设置
 const loadDisplayMode = async () => {
@@ -1015,6 +1048,31 @@ const getBanners = async () => {
   }
 }
 
+const fetchRandomMoment = async () => {
+  momentLoading.value = true
+  try {
+    const res = await request.get('/api/moments/rand', {
+      limit: 1,
+      field: 'id,content,user,create_time'
+    })
+    
+    if (res.code === 200 && res.data && res.data.length > 0) {
+      randomMoment.value = res.data[0]
+    } else {
+      randomMoment.value = null
+    }
+  } catch (error) {
+    console.error('获取随机动态失败:', error)
+    randomMoment.value = null
+  } finally {
+    momentLoading.value = false
+  }
+}
+
+const goToMoment = (momentId) => {
+  router.push(`/moments/${momentId}`)
+}
+
 // 下拉刷新相关变量
 let touchStartY = 0
 let touchCurrentY = 0
@@ -1064,7 +1122,8 @@ onMounted(async () => {
     await Promise.all([
       loadDisplayMode(),
       getBanners(),
-      getArticleList(1)
+      getArticleList(1),
+      fetchRandomMoment()
     ])
   } catch (error) {
     console.error('初始化加载失败', error)

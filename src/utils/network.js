@@ -688,7 +688,7 @@ const uploadImage = async (options = {}) => {
         const params = new FormData()
         params.append('file', file)
 
-        const result = await request.post('/api/file/upload', params)
+        const result = await request.post('/api/attachment/batch', params)
 
         if (result.code !== 200) {
           const error = new Error(result.msg || '上传失败')
@@ -697,8 +697,16 @@ const uploadImage = async (options = {}) => {
           return
         }
 
-        if (onSuccess) onSuccess(result.data.path)
-        resolve(result.data.path)
+        const fullUrl = result.data.results?.[0]?.full_url
+        if (!fullUrl) {
+          const error = new Error('上传失败，未返回文件链接')
+          if (onError) onError(error)
+          reject(error)
+          return
+        }
+
+        if (onSuccess) onSuccess(fullUrl)
+        resolve(fullUrl)
       } catch (error) {
         if (onError) onError(error)
         reject(error)

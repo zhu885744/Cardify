@@ -66,7 +66,7 @@
 <script setup>
 import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { request } from '@/utils/network'
-import { toast } from '@/utils/app'
+import { toast, getSync } from '@/utils/app'
 
 const props = defineProps({
   modelValue: {
@@ -204,14 +204,17 @@ const handleFileChange = async (e) => {
     const formData = new FormData()
     formData.append('file', file)
 
-    const { code, msg, data } = await request.post('/api/file/upload', formData)
+    const { code, msg, data } = await request.post('/api/attachment/batch', formData)
 
     if (code !== 200) {
       throw new Error(msg)
     }
 
-    const { path } = data
-    const imageMarkdown = `![${file.name}](${path})`
+    const fullUrl = data.results?.[0]?.full_url
+    if (!fullUrl) {
+      throw new Error('上传失败，未返回文件链接')
+    }
+    const imageMarkdown = `![${file.name}](${fullUrl})`
     insertText(imageMarkdown)
     toast.success('图片上传成功')
   } catch (err) {

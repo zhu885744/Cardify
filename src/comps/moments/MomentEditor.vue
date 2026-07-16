@@ -203,7 +203,7 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { request } from '@/utils/network'
-import { toast } from '@/utils/app'
+import { toast, getSync } from '@/utils/app'
 import { useCommStore } from '@/store/comm'
 import { RegionSelects } from 'v-region'
 
@@ -293,21 +293,29 @@ const triggerImageUpload = () => {
 
 const handleImageUpload = async (event) => {
   const files = Array.from(event.target.files || [])
-  for (const file of files) {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const { code, msg, data } = await request.post('/api/file/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+  if (files.length === 0) return
+
+  try {
+    const formData = new FormData()
+    files.forEach(file => {
+      formData.append('files', file)
+    })
+
+    const { code, msg, data } = await request.post('/api/attachment/batch', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+
+    if (code === 200 && data?.results) {
+      data.results.forEach(result => {
+        if (result.full_url) {
+          form.images.push(result.full_url)
+        }
       })
-      if (code === 200) {
-        form.images.push(data.path)
-      } else {
-        toast.error('上传失败：' + msg)
-      }
-    } catch (err) {
-      toast.error('上传失败：' + (err.message || '网络异常'))
+    } else {
+      toast.error('上传失败：' + msg)
     }
+  } catch (err) {
+    toast.error('上传失败：' + (err.message || '网络异常'))
   }
   event.target.value = ''
 }
