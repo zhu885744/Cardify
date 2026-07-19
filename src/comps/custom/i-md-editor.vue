@@ -65,7 +65,7 @@
 
 <script setup>
 import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
-import { request } from '@/utils/network'
+import { request, checkFileType } from '@/utils/network'
 import { toast, getSync } from '@/utils/app'
 
 const props = defineProps({
@@ -201,6 +201,8 @@ const handleFileChange = async (e) => {
   }
 
   try {
+    await checkFileType([file.name])
+
     const formData = new FormData()
     formData.append('file', file)
 

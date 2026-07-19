@@ -295,7 +295,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch, nextTick } from 'vue'
-import { request } from '@/utils/network'
+import { request, checkFileType } from '@/utils/network'
 import { toast, getSync } from '@/utils/app'
 import { useCommStore } from '@/store/comm'
 import defaultAvatar from '@/assets/img/avatar.png'
@@ -460,6 +460,8 @@ const uploadCroppedImage = async () => {
     // 创建 FormData 上传
     const params = new FormData()
     params.append('file', blob, 'avatar.jpg')
+    
+    await checkFileType(['avatar.jpg'])
     
     const { code, msg, data } = await request.post('/api/attachment/batch', params, {
       headers: {

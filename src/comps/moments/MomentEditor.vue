@@ -202,7 +202,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
-import { request } from '@/utils/network'
+import { request, checkFileType } from '@/utils/network'
 import { toast, getSync } from '@/utils/app'
 import { useCommStore } from '@/store/comm'
 import { RegionSelects } from 'v-region'
@@ -296,6 +296,9 @@ const handleImageUpload = async (event) => {
   if (files.length === 0) return
 
   try {
+    const fileNames = files.map(f => f.name)
+    await checkFileType(fileNames)
+
     const formData = new FormData()
     files.forEach(file => {
       formData.append('files', file)

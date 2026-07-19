@@ -195,6 +195,17 @@
                   <span>经验明细</span>
                 </button>
               </li>
+              <li class="nav-item" v-if="isOwnProfile">
+                <button 
+                  class="nav-link d-flex align-items-center gap-2" 
+                  :class="{ 'active': activeTab === 'attachments' }"
+                  @click="switchTab('attachments')"
+                >
+                  <i class="bi bi-paperclip"></i>
+                  <span>附件</span>
+                  <span class="badge bg-secondary">{{ attachmentCount }}</span>
+                </button>
+              </li>
             </ul>
 
             <div class="card-body p-3">
@@ -549,6 +560,87 @@
                 </div>
               </div>
 
+              <div v-else-if="activeTab === 'attachments'">
+                <div v-if="attachmentLoading" class="text-center py-5">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                  </div>
+                  <p class="text-body-secondary mt-3">加载中...</p>
+                </div>
+                <div v-else-if="attachments.length === 0" class="text-center py-5">
+                  <i class="bi bi-paperclip text-body-secondary" style="font-size: 3rem;"></i>
+                  <p class="text-body-secondary mt-2">暂无附件</p>
+                </div>
+                <div v-else>
+                  <div class="row g-3">
+                    <div 
+                      v-for="attachment in attachments" 
+                      :key="attachment.id" 
+                      class="col-12 col-sm-6 col-lg-4"
+                    >
+                      <div 
+                        class="card h-100 shadow-sm overflow-hidden attachment-card"
+                      >
+                        <div class="attachment-preview-wrapper" @click="openAttachment(attachment)">
+                          <img 
+                            v-if="isImage(attachment)"
+                            :src="getCleanUrl(attachment.full_url)" 
+                            :alt="attachment.original_name"
+                            class="attachment-preview-img"
+                            loading="lazy"
+                          >
+                          <div v-else class="attachment-icon-wrapper">
+                            <i class="bi" :class="getAttachmentIcon(attachment)"></i>
+                            <span class="attachment-icon-text">{{ attachment.original_name }}</span>
+                          </div>
+                        </div>
+                        <div class="card-body">
+                          <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title fw-bold text-truncate flex-grow-1" @click="openAttachment(attachment)">{{ attachment.original_name }}</h6>
+                            <button 
+                              class="btn btn-sm btn-outline-danger flex-shrink-0 ms-2"
+                              @click.stop="copyAttachmentUrl(attachment)"
+                            >
+                              <i class="bi bi-copy"></i>
+                            </button>
+                          </div>
+                          <div class="d-flex justify-content-between align-items-center text-body-secondary small">
+                            <span>{{ formatFileSize(attachment.file_size) }}</span>
+                            <span>{{ formatters.formatDate(attachment.create_time) }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="attachmentTotalPages > 1" class="d-flex justify-content-center pt-4">
+                    <nav>
+                      <ul class="pagination mb-0">
+                        <li class="page-item" :class="{ disabled: currentAttachmentPage <= 1 }">
+                          <button class="page-link" @click.prevent="changeAttachmentPage(currentAttachmentPage - 1)">
+                            <i class="bi bi-chevron-left"></i>
+                          </button>
+                        </li>
+                        <li 
+                          v-for="page in visibleAttachmentPages" 
+                          :key="page" 
+                          class="page-item"
+                          :class="{ active: page === currentAttachmentPage, disabled: page === '...' }"
+                        >
+                          <button class="page-link" @click.prevent="page !== '...' && changeAttachmentPage(page)">
+                            {{ page }}
+                          </button>
+                        </li>
+                        <li class="page-item" :class="{ disabled: currentAttachmentPage >= attachmentTotalPages }">
+                          <button class="page-link" @click.prevent="changeAttachmentPage(currentAttachmentPage + 1)">
+                            <i class="bi bi-chevron-right"></i>
+                          </button>
+                        </li>
+                      </ul>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+
 
             </div>
           </div>
@@ -567,7 +659,7 @@ import utils from '@/utils/utils'
 import defaultAvatar from '@/assets/img/avatar.png'
 import defaultCover from '@/assets/img/fm.avif'
 import { useCommStore } from '@/store/comm'
-import { formatters, usePageTitle } from '@/utils/app'
+import { formatters, usePageTitle, toast } from '@/utils/app'
 
 const route = useRoute()
 const router = useRouter()
@@ -610,6 +702,12 @@ const expLoading = ref(false)
 const currentExpPage = ref(1)
 const expTotalPages = ref(1)
 const expTotalCount = ref(0)
+
+const attachments = ref([])
+const attachmentLoading = ref(false)
+const currentAttachmentPage = ref(1)
+const attachmentTotalPages = ref(1)
+const attachmentCount = ref(0)
 
 const userStats = ref({
   articleCount: 0,
@@ -1001,6 +1099,36 @@ const visibleExpPages = computed(() => {
   return pages
 })
 
+const visibleAttachmentPages = computed(() => {
+  const total = attachmentTotalPages.value
+  const current = currentAttachmentPage.value
+  const pages = []
+  
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    if (current <= 4) {
+      for (let i = 1; i <= 5; i++) pages.push(i)
+      pages.push('...')
+      pages.push(total)
+    } else if (current >= total - 3) {
+      pages.push(1)
+      pages.push('...')
+      for (let i = total - 4; i <= total; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      pages.push('...')
+      for (let i = current - 1; i <= current + 1; i++) pages.push(i)
+      pages.push('...')
+      pages.push(total)
+    }
+  }
+  
+  return pages
+})
+
 const visibleLikePages = computed(() => {
   const total = likeTotalPages.value
   const current = currentLikePage.value
@@ -1101,7 +1229,7 @@ const getExpTitle = (record) => {
 }
 
 const switchTab = (tab) => {
-  if ((tab === 'pending' || tab === 'exp') && !isOwnProfile.value) {
+  if ((tab === 'pending' || tab === 'exp' || tab === 'attachments') && !isOwnProfile.value) {
     return
   }
   activeTab.value = tab
@@ -1115,6 +1243,8 @@ const switchTab = (tab) => {
     fetchUserLikes()
   } else if (tab === 'exp') {
     fetchExpRecords()
+  } else if (tab === 'attachments') {
+    fetchAttachments()
   }
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -1158,10 +1288,55 @@ const fetchExpRecords = async () => {
   }
 }
 
+const fetchAttachments = async () => {
+  try {
+    if (!userId.value) return
+    
+    attachmentLoading.value = true
+    const res = await request.get('/api/attachment/list', {
+      page: currentAttachmentPage.value,
+      limit: 12,
+      order: 'create_time desc'
+    })
+    
+    if (res.code === 200 && res.data) {
+      if (res.data.data && Array.isArray(res.data.data)) {
+        attachments.value = res.data.data
+        attachmentCount.value = res.data.count || 0
+      } else if (Array.isArray(res.data)) {
+        attachments.value = res.data
+        attachmentCount.value = res.count || res.data.length || 0
+      } else {
+        attachments.value = []
+        attachmentCount.value = 0
+      }
+      attachmentTotalPages.value = Math.ceil(attachmentCount.value / 12) || 1
+    } else {
+      attachments.value = []
+      attachmentCount.value = 0
+      attachmentTotalPages.value = 1
+    }
+  } catch (err) {
+    attachments.value = []
+    attachmentCount.value = 0
+    attachmentTotalPages.value = 1
+  } finally {
+    attachmentLoading.value = false
+  }
+}
+
 const changeExpPage = (page) => {
   if (page < 1 || page > expTotalPages.value) return
   currentExpPage.value = page
   fetchExpRecords()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const changeAttachmentPage = (page) => {
+  if (page < 1 || page > attachmentTotalPages.value) return
+  currentAttachmentPage.value = page
+  attachments.value = []
+  fetchAttachments()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -1298,6 +1473,60 @@ const handleAvatarError = (event) => {
   event.target.src = defaultAvatar
 }
 
+const isImage = (attachment) => {
+  const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'avif']
+  const ext = attachment.original_name?.split('.').pop()?.toLowerCase() || ''
+  return imageExtensions.includes(ext)
+}
+
+const getAttachmentIcon = (attachment) => {
+  const ext = attachment.original_name?.split('.').pop()?.toLowerCase() || ''
+  const iconMap = {
+    'pdf': 'bi-file-pdf',
+    'doc': 'bi-file-word',
+    'docx': 'bi-file-word',
+    'xls': 'bi-file-excel',
+    'xlsx': 'bi-file-excel',
+    'ppt': 'bi-file-powerpoint',
+    'pptx': 'bi-file-powerpoint',
+    'txt': 'bi-file-text',
+    'zip': 'bi-file-zip',
+    'rar': 'bi-file-zip',
+    '7z': 'bi-file-zip',
+    'mp3': 'bi-file-audio',
+    'mp4': 'bi-file-video',
+    'avi': 'bi-file-video',
+    'mov': 'bi-file-video',
+  }
+  return iconMap[ext] || 'bi-file-earmark'
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const getCleanUrl = (url) => {
+  if (!url) return ''
+  return url.trim().replace(/^`|`$/g, '')
+}
+
+const openAttachment = (attachment) => {
+  window.open(attachment.full_url, '_blank')
+}
+
+const copyAttachmentUrl = async (attachment) => {
+  try {
+    await navigator.clipboard.writeText(attachment.full_url)
+    toast.success('链接已复制')
+  } catch (err) {
+    toast.error('复制失败')
+  }
+}
+
 onMounted(() => {
   setLoadingTitle()
   fetchUserInfo()
@@ -1325,9 +1554,11 @@ watch(
       currentCollectionPage.value = 1
       currentLikePage.value = 1
       currentExpPage.value = 1
+      currentAttachmentPage.value = 1
       expRecords.value = []
       collectionArticles.value = []
       likeArticles.value = []
+      attachments.value = []
       fetchUserInfo()
       fetchUserArticles()
       initUserStats()
@@ -1547,5 +1778,62 @@ watch(
 
 [data-bs-theme="dark"] .level-progress-bar {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.attachment-card {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.attachment-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.attachment-preview-wrapper {
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  background-color: #f3f4f6;
+}
+
+.attachment-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.attachment-card:hover .attachment-preview-img {
+  transform: scale(1.05);
+}
+
+.attachment-icon-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 2.5rem;
+  color: #6c757d;
+}
+
+.attachment-icon-text {
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+[data-bs-theme="dark"] .attachment-preview-wrapper {
+  background-color: #1f1f1f;
+}
+
+[data-bs-theme="dark"] .attachment-icon-wrapper {
+  color: #adb5bd;
 }
 </style>

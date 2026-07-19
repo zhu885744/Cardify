@@ -217,7 +217,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import utils from '@/utils/utils'
-import { request, cache } from '@/utils/network'
+import { request, cache, checkFileType } from '@/utils/network'
 import IMdEditor from '@/comps/custom/i-md-editor.vue'
 import { useCommStore } from '@/store/comm'
 import { usePageTitle, getSync } from '@/utils/app'
@@ -569,6 +569,9 @@ const method = {
             if (!files || files.length === 0) return
 
             try {
+                const fileNames = Array.from(files).map(f => f.name)
+                await checkFileType(fileNames)
+
                 const formData = new FormData()
                 for (let i = 0; i < files.length; i++) {
                     formData.append('files', files[i])

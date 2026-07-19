@@ -682,11 +682,6 @@
 | `allow_extensions` | string | 否 | 允许的文件扩展名，多个用逗号分隔 |
 | `max_file_size` | int | 否 | 单个文件最大大小（KB） |
 | `concurrent_limit` | int | 否 | 并发上传限制 |
-| `limit_per_minute` | int | 否 | 每分钟上传限制（0为不限制） |
-| `limit_per_hour` | int | 否 | 每小时上传限制（0为不限制） |
-| `limit_per_day` | int | 否 | 每天上传限制（0为不限制） |
-| `limit_per_week` | int | 否 | 每周上传限制（0为不限制） |
-| `limit_per_month` | int | 否 | 每月上传限制（0为不限制） |
 
 **请求示例**:
 ```json

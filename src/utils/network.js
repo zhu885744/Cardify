@@ -685,6 +685,8 @@ const uploadImage = async (options = {}) => {
           return
         }
 
+        await checkFileType([file.name])
+
         const params = new FormData()
         params.append('file', file)
 
@@ -721,6 +723,25 @@ const uploadImage = async (options = {}) => {
   })
 }
 
-export { cache, request, uploadImage }
+const checkFileType = async (fileNames) => {
+  try {
+    const result = await request.post('/api/attachment/checkType', {
+      file_names: fileNames
+    })
+    if (result.code === 200 && result.data) {
+      const disallowedFiles = result.data.results?.filter(item => !item.is_allowed) || []
+      if (disallowedFiles.length > 0) {
+        const messages = disallowedFiles.map(item => `${item.file_name}: ${item.message}`)
+        throw new Error(messages.join('；'))
+      }
+      return result.data
+    }
+    throw new Error(result.msg || '文件类型检查失败')
+  } catch (error) {
+    throw error
+  }
+}
 
-export default { cache, request, uploadImage }
+export { cache, request, uploadImage, checkFileType }
+
+export default { cache, request, uploadImage, checkFileType }
