@@ -192,25 +192,18 @@
                     <i class="bi bi-display-fill text-primary"></i>
                     显示设置
                   </h2>
-                  <div class="row">
+                  <div class="row g-3">
                     <div class="col-md-6">
-                      <div class="d-flex align-items-center justify-content-between p-3 bg-body-tertiary rounded">
-                        <div>
-                          <label class="form-label small fw-medium mb-1">文章列表布局</label>
-                          <p class="form-text small mb-0">选择文章列表卡片的显示模式</p>
-                        </div>
-                        <div class="form-check form-switch">
-                          <input 
-                            class="form-check-input" 
-                            type="checkbox" 
-                            id="display_mode_switch"
-                            v-model="globalConfig.display_mode"
-                          >
-                          <label class="form-check-label" for="display_mode_switch">
-                            {{ globalConfig.display_mode ? '有图模式' : '列表模式' }}
-                          </label>
-                        </div>
-                      </div>
+                      <label class="form-label small fw-medium mb-1">文章列表布局</label>
+                      <select 
+                        class="form-select form-select-sm" 
+                        v-model="globalConfig.display_mode"
+                      >
+                        <option value="grid">网格卡片模式</option>
+                        <option value="list">列表模式</option>
+                        <option value="horizontal">横向图文模式</option>
+                      </select>
+                      <div class="form-text small mt-1">选择文章列表卡片的显示模式</div>
                     </div>
                     <div class="col-md-6">
                       <div class="d-flex align-items-center justify-content-between p-3 bg-body-tertiary rounded">
@@ -1112,7 +1105,7 @@ const globalConfig = ref({
   avatar: '',
   favicon: '',
   date: Math.floor(Date.now() / 1000).toString(),
-  display_mode: true, // true 为有图模式，false 为列表模式
+  display_mode: 'grid', // grid 为网格卡片模式，list 为列表模式，horizontal 为横向图文模式
   custom_nav_links: '', // 自定义导航链接（每行：文字 || 链接）
   copy: {
     code: '',
@@ -1221,6 +1214,11 @@ async function getGlobalConfig() {
   try {
     const config = await getXiaoFunctionsConfig()
     // 填充表单
+    // 兼容旧的布尔值格式和新的字符串格式
+    let displayMode = config.display_mode || 'grid'
+    if (typeof displayMode === 'boolean') {
+      displayMode = displayMode ? 'grid' : 'list'
+    }
     globalConfig.value = {
       title: config.title || '',
       description: config.description || '',
@@ -1228,7 +1226,7 @@ async function getGlobalConfig() {
       avatar: config.avatar || '',
       favicon: config.favicon || '',
       date: config.date || Math.floor(Date.now() / 1000).toString(),
-      display_mode: config.display_mode !== false,
+      display_mode: displayMode,
       quick_publish: config.quick_publish !== false,
       custom_nav_links: config.custom_nav_links || '', // 自定义导航链接
       copy: {
@@ -1462,7 +1460,7 @@ function resetGlobalConfig() {
     avatar: '',
     favicon: '',
     date: Math.floor(Date.now() / 1000).toString(),
-    display_mode: true,
+    display_mode: 'grid',
     custom_nav_links: '',
     copy: {
       code: '',

@@ -22,7 +22,7 @@
       <div
         :class="[
           'article-list-container mt-2',
-          hasImageMode ? 'grid-article-list' : 'list-article-list',
+          displayMode === 'grid' ? 'grid-article-list' : (displayMode === 'horizontal' ? 'horizontal-article-list' : 'list-article-list'),
         ]"
       >
         <div
@@ -30,12 +30,12 @@
           :key="`skeleton-${i}`"
           :class="[
             'card',
-            hasImageMode ? 'article-item-card shadow-sm' : 'article-item-list shadow-sm mt-2',
+            displayMode === 'grid' ? 'article-item-card shadow-sm' : (displayMode === 'horizontal' ? 'article-item-horizontal shadow-sm mt-2' : 'article-item-list shadow-sm mt-2'),
           ]"
         >
-          <!-- 有图模式骨架 -->
+          <!-- 网格卡片模式骨架 -->
           <div
-            v-if="hasImageMode"
+            v-if="displayMode === 'grid'"
             class="card-body p-0 d-flex flex-column h-100"
           >
             <!-- 封面骨架 -->
@@ -62,7 +62,7 @@
           </div>
 
           <!-- 列表模式骨架 -->
-          <div v-else class="card-body p-4">
+          <div v-else-if="displayMode === 'list'" class="card-body p-4">
             <div class="d-flex align-items-start gap-4">
               <div class="flex-shrink-0 w-10 h-10 bg-secondary-subtle rounded-lg"></div>
               <div class="flex-grow-1 min-width-0">
@@ -72,6 +72,26 @@
                   <div class="skeleton skeleton-meta-left"></div>
                   <div class="skeleton skeleton-meta-right"></div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 横向图文模式骨架 -->
+          <div v-else class="card-body p-0 d-flex h-100">
+            <div class="article-horizontal-cover flex-shrink-0">
+              <div class="skeleton skeleton-horizontal-cover"></div>
+            </div>
+            <div class="article-horizontal-content p-3 flex-grow-1 d-flex flex-column">
+              <div class="skeleton skeleton-title-horizontal mb-2"></div>
+              <div class="skeleton skeleton-desc-horizontal mt-auto mb-2"></div>
+              <div class="d-flex gap-1 mb-2">
+                <div class="skeleton skeleton-tag"></div>
+                <div class="skeleton skeleton-tag"></div>
+                <div class="skeleton skeleton-tag"></div>
+              </div>
+              <div class="d-flex justify-content-between mt-auto">
+                <div class="skeleton skeleton-meta-left-horizontal"></div>
+                <div class="skeleton skeleton-meta-right-horizontal"></div>
               </div>
             </div>
           </div>
@@ -124,7 +144,7 @@
       <div
         :class="[
           'article-list-container mt-2',
-          hasImageMode ? 'grid-article-list' : 'list-article-list',
+          displayMode === 'grid' ? 'grid-article-list' : (displayMode === 'horizontal' ? 'horizontal-article-list' : 'list-article-list'),
         ]"
       >
         <!-- 空状态 -->
@@ -141,16 +161,16 @@
           :key="article.id"
           :class="[
             'card',
-            hasImageMode
+            displayMode === 'grid'
               ? 'article-item-card shadow-sm hover-shadow'
-              : 'article-item-list shadow-sm hover-shadow mt-2',
+              : (displayMode === 'horizontal' ? 'article-item-horizontal shadow-sm hover-shadow mt-2' : 'article-item-list shadow-sm hover-shadow mt-2'),
           ]"
           @click="goToArticle(article.id)"
           style="cursor: pointer"
         >
-          <!-- 有图模式布局 -->
+          <!-- 网格卡片模式布局 -->
           <div
-            v-if="hasImageMode"
+            v-if="displayMode === 'grid'"
             class="card-body p-0 d-flex flex-column h-100"
           >
             <!-- 文章封面 -->
@@ -196,7 +216,7 @@
           </div>
 
           <!-- 列表模式布局 -->
-          <div v-else class="card-body p-4">
+          <div v-else-if="displayMode === 'list'" class="card-body p-4">
             <div class="d-flex align-items-start gap-4">
               <div class="flex-grow-1 min-width-0">
                 <div class="d-flex align-items-center gap-2 mb-2">
@@ -214,6 +234,54 @@
                   <span><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
                   <span><i class="bi bi-heart-fill me-1"></i>{{ article?.result?.like?.length || 0 }}</span>
                   <span><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 横向图文模式布局 -->
+          <div v-else class="card-body p-4 d-flex gap-4 h-100">
+            <!-- 文章封面（左侧） -->
+            <div class="article-horizontal-cover flex-shrink-0">
+              <img
+                :src="getCoverImg(article)"
+                :alt="article.title"
+                class="article-horizontal-cover-img w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
+                @error="handleImageError"
+              />
+            </div>
+            <!-- 内容（右侧） -->
+            <div class="article-horizontal-content flex-grow-1 d-flex flex-column min-width-0">
+              <!-- 标签行：分类标签 -->
+              <div class="flex-shrink-0 mb-2">
+                <span class="article-horizontal-tag badge bg-primary text-white text-xs">{{ article?.result?.group?.[0]?.name || "未分类" }}</span>
+              </div>
+              <!-- 文章标题 -->
+              <h3 class="article-title-horizontal fw-bold m-0">
+                {{ article.title }}
+              </h3>
+              <!-- 文章摘要 -->
+              <p class="article-desc-horizontal text-muted flex-grow-1 mb-3">
+                {{ truncateAbstract(article.abstract) }}
+              </p>
+              <!-- 底部信息：分类/日期/浏览/评论 + 标签 -->
+              <div class="article-horizontal-footer flex-shrink-0 d-flex align-items-center justify-content-between w-full">
+                <div class="article-horizontal-meta d-flex align-items-center gap-3 text-body-secondary text-sm">
+                  <span class="meta-item-horizontal"><i class="bi bi-folder-fill me-1"></i>{{ article?.result?.group?.[0]?.name || '未分类' }}</span>
+                  <span class="meta-item-horizontal"><i class="bi bi-calendar-fill me-1"></i>{{ formatTime(article.publish_time) }}</span>
+                  <span class="meta-item-horizontal"><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
+                  <span class="meta-item-horizontal"><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
+                </div>
+                <div class="article-horizontal-tags d-flex flex-wrap gap-1">
+                  <span
+                    v-for="tag in getArticleTags(article)"
+                    :key="tag"
+                    class="text-xs text-body-secondary"
+                  >
+                    #{{ tag }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -288,25 +356,47 @@ const currentPage = ref(1)              // 当前页码
 const total = ref(0)                    // 文章总数
 const limit = ref(10)                   // 每页条数
 const articleCount = ref(0)             // 分类下文章总数
-const hasImageMode = ref(true)          // 显示模式：true=有图模式，false=列表模式
+const displayMode = ref('grid')          // 显示模式：grid=网格卡片模式，list=列表模式，horizontal=横向图文模式
+
+// 获取文章标签
+const getArticleTags = (article) => {
+  const tags = article?.result?.tags || []
+  return tags.slice(0, 3).map(t => t.name)
+}
+
+// 截断摘要，限制150字
+const truncateAbstract = (text, maxLength = 150) => {
+  if (!text) return '暂无摘要'
+  const str = String(text).trim()
+  if (str.length <= maxLength) return str
+  return str.substring(0, maxLength) + '...'
+}
 
 // 从后端API获取显示模式设置
 const loadDisplayMode = async () => {
   try {
     // 优先从 store 读取（siteInfo 已经在应用初始化时缓存过了）
     if (store.comm.siteInfo?.display_mode !== undefined) {
-      hasImageMode.value = store.comm.siteInfo.display_mode !== false
+      let mode = store.comm.siteInfo.display_mode
+      if (typeof mode === 'boolean') {
+        mode = mode ? 'grid' : 'list'
+      }
+      displayMode.value = mode || 'grid'
       return
     }
     // 如果 store 没有，再请求 API（兜底）
     const response = await request.get('/api/config/one', { key: 'cardify_functions' })
     if (response.code === 200 && response.data) {
       const config = response.data.json || {}
-      hasImageMode.value = config.display_mode !== false
+      let mode = config.display_mode
+      if (typeof mode === 'boolean') {
+        mode = mode ? 'grid' : 'list'
+      }
+      displayMode.value = mode || 'grid'
     }
   } catch (error) {
     console.error('读取显示模式设置失败:', error)
-    hasImageMode.value = true
+    displayMode.value = 'grid'
   }
 }
 
@@ -564,6 +654,43 @@ onMounted(async () => {
   margin-bottom: 0.5rem;
 }
 
+/* 横向图文模式骨架屏 */
+.skeleton-horizontal-cover {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 0;
+}
+
+.skeleton-title-horizontal {
+  height: 1.5rem;
+  width: 80%;
+}
+
+.skeleton-desc-horizontal {
+  height: 0.9rem;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-tag {
+  height: 0.7rem;
+  width: 3rem;
+  border-radius: 10px;
+}
+
+.skeleton-meta-left-horizontal {
+  height: 0.7rem;
+  width: 50%;
+}
+
+.skeleton-meta-right-horizontal {
+  height: 0.7rem;
+  width: 30%;
+}
+
 .skeleton-pagination {
   height: 2.5rem;
   width: 200px;
@@ -679,9 +806,17 @@ onMounted(async () => {
   margin: 0 auto;
 }
 
+/* 文章列表横向布局 */
+.horizontal-article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 /* 文章卡片基础样式 */
 .article-item-card,
-.article-item-list {
+.article-item-list,
+.article-item-horizontal {
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -690,7 +825,8 @@ onMounted(async () => {
 
 /* 文章卡片悬停效果 */
 .article-item-card:hover,
-.article-item-list:hover {
+.article-item-list:hover,
+.article-item-horizontal:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
@@ -731,6 +867,123 @@ img {
 }
 
 .article-cover:hover .article-cover-img {
+  transform: scale(1.08);
+  filter: brightness(1.05);
+}
+
+/* 横向图文模式封面容器 */
+.article-horizontal-cover {
+  width: 200px;
+  height: 160px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--bs-light), var(--bs-secondary-bg));
+  border-radius: 0.5rem;
+}
+
+/* 横向图文模式封面图片 */
+.article-horizontal-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: all 0.5s ease;
+  border-radius: 0.5rem;
+}
+
+/* 横向图文模式内容区域 */
+.article-horizontal-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 横向图文模式分类标签 */
+.article-horizontal-tag {
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* 横向图文模式标题 */
+.article-title-horizontal {
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  line-height: 1.5;
+  font-weight: 700;
+  color: var(--bs-body-color);
+  transition: color 0.3s ease;
+  margin-bottom: 0.5rem !important;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.article-item-horizontal:hover .article-title-horizontal {
+  color: var(--bs-primary);
+}
+
+/* 横向图文模式摘要 */
+.article-desc-horizontal {
+  font-size: 0.85rem;
+  color: var(--bs-secondary-color);
+  line-height: 1.6;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 横向图文模式底部信息 */
+.article-horizontal-footer {
+  margin-top: auto;
+}
+
+/* 横向图文模式元信息 */
+.article-horizontal-meta {
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.meta-item-horizontal {
+  position: relative;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  padding-left: 0 !important;
+  transition: color 0.3s ease;
+}
+
+.meta-item-horizontal:hover {
+  color: var(--bs-primary);
+}
+
+.meta-item-horizontal .bi {
+  font-size: 0.85em;
+  margin-right: 0.25rem;
+  line-height: 1;
+  vertical-align: middle;
+  color: var(--bs-tertiary-color);
+  transition: color 0.3s ease;
+}
+
+.meta-item-horizontal:hover .bi {
+  color: var(--bs-primary);
+}
+
+/* 横向图文模式标签 */
+.article-horizontal-tags {
+  justify-content: flex-end;
+}
+
+.article-horizontal-cover:hover .article-horizontal-cover-img {
   transform: scale(1.08);
   filter: brightness(1.05);
 }
@@ -960,6 +1213,44 @@ img {
   .category-description {
     font-size: 1rem;
   }
+  
+  /* 横向图文模式中等屏幕响应式 */
+  .article-horizontal-cover {
+    width: 150px;
+    height: 120px;
+  }
+  
+  .article-horizontal-content {
+    padding: 0 !important;
+  }
+  
+  .article-title-horizontal {
+    font-size: 1rem;
+    line-height: 1.4;
+    margin-bottom: 0.5rem !important;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  
+  .article-desc-horizontal {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    margin-bottom: 0.4rem !important;
+  }
+  
+  .article-horizontal-meta {
+    font-size: 0.7rem;
+    flex-wrap: wrap;
+    gap: 0.5rem !important;
+  }
+  
+  .article-horizontal-footer {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.3rem;
+  }
 }
 
 @media (max-width: 576px) {
@@ -999,6 +1290,48 @@ img {
   
   .meta-item .bi {
     font-size: 0.8em;
+  }
+  
+  /* 横向图文模式移动端响应式 */
+  .article-horizontal-cover {
+    width: 110px;
+    height: 90px;
+  }
+  
+  .article-horizontal-content {
+    padding: 0 !important;
+  }
+  
+  .article-title-horizontal {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-bottom: 0.4rem !important;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  
+  .article-desc-horizontal {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    margin-bottom: 0.4rem !important;
+  }
+  
+  .article-horizontal-meta {
+    font-size: 0.65rem;
+    flex-wrap: wrap;
+    gap: 0.5rem !important;
+  }
+  
+  .article-horizontal-tags {
+    display: none !important;
+  }
+  
+  .article-horizontal-footer {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.3rem;
   }
 }
 
@@ -1087,8 +1420,51 @@ img {
   
   /* 悬停效果 */
   .article-item-card:hover,
-  .article-item-list:hover {
+  .article-item-list:hover,
+  .article-item-horizontal:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* 横向图文模式暗黑模式 */
+  .article-horizontal-cover {
+    background: linear-gradient(135deg, var(--bs-body-bg), var(--bs-secondary-bg));
+  }
+  
+  .article-title-horizontal {
+    color: var(--bs-heading-color);
+  }
+  
+  .article-item-horizontal:hover .article-title-horizontal {
+    color: var(--bs-primary);
+  }
+  
+  .article-desc-horizontal {
+    color: var(--bs-secondary-color);
+  }
+  
+  .article-horizontal-meta {
+    color: var(--bs-tertiary-color);
+  }
+  
+  .meta-item-horizontal:hover {
+    color: var(--bs-primary);
+  }
+  
+  .meta-item-horizontal .bi {
+    color: var(--bs-tertiary-color);
+  }
+  
+  .meta-item-horizontal:hover .bi {
+    color: var(--bs-primary);
+  }
+  
+  .article-horizontal-cover-img.lazy-error {
+    background: linear-gradient(135deg, var(--bs-body-bg), var(--bs-secondary-bg));
+  }
+  
+  .article-item-horizontal {
+    background-color: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
   }
   
   /* 分页暗黑模式 */

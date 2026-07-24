@@ -178,9 +178,9 @@
   <!-- 加载状态 -->
   <div v-if="loading && articleList.length === 0" class="article-list-container mt-2">
     <!-- 骨架加载 -->
-    <div v-for="i in 6" :key="`skeleton-${i}`" :class="['card', hasImageMode ? 'article-item-card shadow-sm' : 'article-item-list shadow-sm mt-2']">
-      <!-- 有图模式骨架 -->
-      <div v-if="hasImageMode" class="card-body p-0 d-flex flex-column h-100">
+    <div v-for="i in 6" :key="`skeleton-${i}`" :class="['card', getSkeletonClass()]">
+      <!-- 网格卡片模式骨架 -->
+      <div v-if="displayMode === 'grid'" class="card-body p-0 d-flex flex-column h-100">
         <!-- 封面骨架 -->
         <div class="article-cover flex-shrink-0">
           <div class="skeleton skeleton-cover"></div>
@@ -199,7 +199,7 @@
         </div>
       </div>
       <!-- 列表模式骨架 -->
-      <div v-else class="card-body p-4">
+      <div v-else-if="displayMode === 'list'" class="card-body p-4">
         <div class="d-flex align-items-start gap-4">
           <div class="flex-shrink-0 w-10 h-10 bg-secondary-subtle rounded-lg"></div>
           <div class="flex-grow-1 min-width-0">
@@ -212,6 +212,31 @@
           </div>
         </div>
       </div>
+      <!-- 横向图文模式骨架 -->
+      <div v-else class="card-body p-0 d-flex h-100">
+        <!-- 封面骨架 -->
+        <div class="article-horizontal-cover flex-shrink-0">
+          <div class="skeleton skeleton-horizontal-cover"></div>
+        </div>
+        <!-- 内容骨架 -->
+        <div class="article-horizontal-content p-3 flex-grow-1 d-flex flex-column">
+          <!-- 标题骨架 -->
+          <div class="skeleton skeleton-title-horizontal mb-2"></div>
+          <!-- 摘要骨架 -->
+          <div class="skeleton skeleton-desc-horizontal mt-auto mb-2"></div>
+          <!-- 标签骨架 -->
+          <div class="d-flex gap-1 mb-2">
+            <div class="skeleton skeleton-tag"></div>
+            <div class="skeleton skeleton-tag"></div>
+            <div class="skeleton skeleton-tag"></div>
+          </div>
+          <!-- 元信息骨架 -->
+          <div class="d-flex justify-content-between mt-auto">
+            <div class="skeleton skeleton-meta-left-horizontal"></div>
+            <div class="skeleton skeleton-meta-right-horizontal"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -221,13 +246,13 @@
   </div>
 
   <!-- 文章列表 -->
-  <div v-else :class="['article-list-container mt-2', hasImageMode ? 'grid-article-list' : 'list-article-list']">
+  <div v-else :class="['article-list-container mt-2', getArticleListClass()]">
     <div 
       v-for="article in sortedArticleList" 
       :key="article.id"
       :class="[
         'card', 
-        hasImageMode ? 'article-item-card shadow-sm hover-shadow' : 'article-item-list shadow-sm hover-shadow mt-2',
+        getArticleItemClass(),
         {'sticky-article': article.top === 1}
       ]"
       @click="toArticleDetail(article.id)" 
@@ -238,8 +263,8 @@
         <i class="bi bi-pin-angle-fill"></i> 置顶
       </div>
       
-      <!-- 有图模式布局 -->
-      <div v-if="hasImageMode" class="card-body p-0 d-flex flex-column h-100">
+      <!-- 网格卡片模式布局 -->
+      <div v-if="displayMode === 'grid'" class="card-body p-0 d-flex flex-column h-100">
         <!-- 文章封面 -->
         <div class="article-cover flex-shrink-0">
           <img 
@@ -276,7 +301,7 @@
       </div>
       
       <!-- 列表模式布局 -->
-      <div v-else class="card-body p-4">
+      <div v-else-if="displayMode === 'list'" class="card-body p-4">
         <div class="d-flex align-items-start gap-4">
           <div class="flex-grow-1 min-width-0">
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -294,6 +319,58 @@
               <span><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
               <span><i class="bi bi-heart-fill me-1"></i>{{ article?.result?.like?.length || 0 }}</span>
               <span><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 横向图文模式布局 -->
+      <div v-else class="card-body p-4 d-flex gap-4 h-100">
+        <!-- 文章封面（左侧） -->
+        <div class="article-horizontal-cover flex-shrink-0">
+          <img 
+            :src="loadingGif" 
+            :data-src="getCoverImg(article)" 
+            :alt="article.title" 
+            class="article-horizontal-cover-img w-full h-full object-cover lazy-img"
+            @load="onImageLoad"
+            @error="handleImageError"
+          >
+        </div>
+        <!-- 内容（右侧） -->
+        <div class="article-horizontal-content flex-grow-1 d-flex flex-column min-width-0">
+          <!-- 标签行：分类标签 + 标题 -->
+          <div class="flex-shrink-0 mb-2">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="article-horizontal-tag badge bg-primary text-white text-xs">{{ article?.result?.group?.[0]?.name || "未分类" }}</span>
+              <span v-if="article.top === 1" class="badge bg-secondary text-white text-xs"><i class="bi bi-pin-angle-fill me-1"></i>置顶</span>
+            </div>
+            <h3 class="article-title-horizontal fw-bold m-0">
+              {{ article.title }}
+            </h3>
+          </div>
+
+          <!-- 文章摘要 -->
+          <p class="article-desc-horizontal text-muted flex-grow-1 mb-3">
+            {{ truncateAbstract(article.abstract) }}
+          </p>
+
+          <!-- 底部信息：分类/日期/浏览/评论 + 标签 -->
+          <div class="article-horizontal-footer flex-shrink-0 d-flex align-items-center justify-content-between w-full">
+            <div class="article-horizontal-meta d-flex align-items-center gap-3 text-body-secondary text-sm">
+              <span class="meta-item-horizontal"><i class="bi bi-folder-fill me-1"></i>{{ article?.result?.group?.[0]?.name || '未分类' }}</span>
+              <span class="meta-item-horizontal"><i class="bi bi-calendar-fill me-1"></i>{{ formatTime(article.publish_time) }}</span>
+              <span class="meta-item-horizontal"><i class="bi bi-eye-fill me-1"></i>{{ article.views || 0 }}</span>
+              <span class="meta-item-horizontal"><i class="bi bi-chat-fill me-1"></i>{{ article?.result?.comment?.count || 0 }}</span>
+            </div>
+            <div class="article-horizontal-tags d-flex flex-wrap gap-1">
+              <span 
+                v-for="tag in getArticleTags(article)" 
+                :key="tag" 
+                class="text-xs text-body-secondary"
+              >
+                #{{ tag }}
+              </span>
             </div>
           </div>
         </div>
@@ -389,8 +466,8 @@ const articleList = ref([])
 
 const isLogin = computed(() => commStore.login.finish && Object.keys(commStore.login.user).length > 0)
 
-// 显示模式：true为有图模式（网格布局），false为列表模式（列表布局）
-const hasImageMode = ref(true)
+// 显示模式：grid为网格卡片模式，list为列表模式，horizontal为横向图文模式
+const displayMode = ref('grid')
 // 快速发布文章开关
 const quickPublishEnabled = ref(true)
 // 轮播图数据
@@ -406,7 +483,7 @@ const loadDisplayMode = async () => {
   try {
     // 优先从 store 读取（siteInfo 已经在应用初始化时缓存过了）
     if (commStore.siteInfo?.display_mode !== undefined) {
-      hasImageMode.value = commStore.siteInfo.display_mode !== false
+      displayMode.value = commStore.siteInfo.display_mode || 'grid'
       quickPublishEnabled.value = commStore.siteInfo.quick_publish !== false
       return
     }
@@ -414,12 +491,12 @@ const loadDisplayMode = async () => {
     const response = await request.get('/api/config/one', { key: 'cardify_functions' })
     if (response.code === 200 && response.data) {
       const config = response.data.json || {}
-      hasImageMode.value = config.display_mode !== false
+      displayMode.value = config.display_mode || 'grid'
       quickPublishEnabled.value = config.quick_publish !== false
     }
   } catch (error) {
     console.error('读取显示模式设置失败:', error)
-    hasImageMode.value = true
+    displayMode.value = 'grid'
     quickPublishEnabled.value = true
   }
 }
@@ -438,8 +515,58 @@ const saveDisplayMode = async (mode) => {
 
 // 监听显示模式变化
 const changeDisplayMode = async (mode) => {
-  hasImageMode.value = mode
+  displayMode.value = mode
   await saveDisplayMode(mode)
+}
+
+// 获取骨架屏样式类
+const getSkeletonClass = () => {
+  switch (displayMode.value) {
+    case 'grid':
+      return 'article-item-card shadow-sm'
+    case 'list':
+      return 'article-item-list shadow-sm mt-2'
+    default:
+      return 'article-item-horizontal shadow-sm mt-2'
+  }
+}
+
+// 获取文章列表样式类
+const getArticleListClass = () => {
+  switch (displayMode.value) {
+    case 'grid':
+      return 'grid-article-list'
+    case 'list':
+      return 'list-article-list'
+    default:
+      return 'horizontal-article-list'
+  }
+}
+
+// 获取文章项样式类
+const getArticleItemClass = () => {
+  switch (displayMode.value) {
+    case 'grid':
+      return 'article-item-card shadow-sm hover-shadow'
+    case 'list':
+      return 'article-item-list shadow-sm hover-shadow mt-2'
+    default:
+      return 'article-item-horizontal shadow-sm hover-shadow mt-2'
+  }
+}
+
+// 获取文章标签
+const getArticleTags = (article) => {
+  const tags = article?.result?.tags || []
+  return tags.slice(0, 3).map(t => t.name)
+}
+
+// 截断摘要，限制150字
+const truncateAbstract = (text, maxLength = 150) => {
+  if (!text) return '暂无摘要'
+  const str = String(text).trim()
+  if (str.length <= maxLength) return str
+  return str.substring(0, maxLength) + '...'
 }
 
 // 计算总页数
@@ -1161,9 +1288,17 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+/* 文章列表横向布局 */
+.horizontal-article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 /* 文章卡片基础样式 */
 .article-item-card,
-.article-item-list {
+.article-item-list,
+.article-item-horizontal {
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -1172,7 +1307,8 @@ onUnmounted(() => {
 
 /* 文章卡片悬停效果 */
 .article-item-card:hover,
-.article-item-list:hover {
+.article-item-list:hover,
+.article-item-horizontal:hover {
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
@@ -1256,6 +1392,152 @@ onUnmounted(() => {
 .article-cover-img.lazy-error::after {
   content: '📷';
   font-size: 2rem;
+}
+
+/* 横向图文模式封面容器 */
+.article-horizontal-cover {
+  width: 200px;
+  height: 160px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--bs-light), var(--bs-secondary-bg));
+  border-radius: 0.5rem;
+}
+
+/* 横向图文模式封面图片 */
+.article-horizontal-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: all 0.5s ease;
+  border-radius: 0.5rem;
+}
+
+/* 横向图文模式加载中的图片样式 */
+.article-horizontal-cover-img.lazy-loading {
+  filter: blur(8px);
+  opacity: 0.6;
+  transform: scale(1.05);
+}
+
+/* 横向图文模式加载完成的图片样式 */
+.article-horizontal-cover-img.lazy-loaded {
+  filter: blur(0);
+  opacity: 1;
+  animation: fadeIn 0.6s ease-out;
+}
+
+/* 横向图文模式加载失败的图片样式 */
+.article-horizontal-cover-img.lazy-error {
+  background: linear-gradient(135deg, #e9ecef, #dee2e6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #868e96;
+  font-size: 1.5rem;
+}
+
+.article-horizontal-cover-img.lazy-error::after {
+  content: '📷';
+  font-size: 2rem;
+}
+
+/* 横向图文模式内容区域 */
+.article-horizontal-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 横向图文模式分类标签 */
+.article-horizontal-tag {
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* 横向图文模式标题 */
+.article-title-horizontal {
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  line-height: 1.5;
+  font-weight: 700;
+  color: var(--bs-body-color);
+  transition: color 0.3s ease;
+  margin-bottom: 0.5rem !important;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.article-item-horizontal:hover .article-title-horizontal {
+  color: var(--bs-primary);
+}
+
+/* 横向图文模式摘要 */
+.article-desc-horizontal {
+  font-size: 0.85rem;
+  color: var(--bs-secondary-color);
+  line-height: 1.6;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 横向图文模式底部信息 */
+.article-horizontal-footer {
+  margin-top: auto;
+}
+
+/* 横向图文模式元信息 */
+.article-horizontal-meta {
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.meta-item-horizontal {
+  position: relative;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  padding-left: 0 !important;
+  transition: color 0.3s ease;
+}
+
+.meta-item-horizontal:hover {
+  color: var(--bs-primary);
+}
+
+.meta-item-horizontal .bi {
+  font-size: 0.85em;
+  margin-right: 0.25rem;
+  line-height: 1;
+  vertical-align: middle;
+  color: var(--bs-tertiary-color);
+  transition: color 0.3s ease;
+}
+
+.meta-item-horizontal:hover .bi {
+  color: var(--bs-primary);
+}
+
+/* 横向图文模式标签 */
+.article-horizontal-tags {
+  justify-content: flex-end;
+}
+
+.article-horizontal-cover:hover .article-horizontal-cover-img {
+  transform: scale(1.08);
+  filter: brightness(1.05);
 }
 
 /* 内容 */
@@ -1466,6 +1748,44 @@ img {
   .article-meta {
     font-size: 0.7rem;
   }
+  
+  /* 横向图文模式中等屏幕响应式 */
+  .article-horizontal-cover {
+    width: 150px;
+    height: 120px;
+  }
+  
+  .article-horizontal-content {
+    padding: 0 !important;
+  }
+  
+  .article-title-horizontal {
+    font-size: 1rem;
+    line-height: 1.4;
+    margin-bottom: 0.5rem !important;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  
+  .article-desc-horizontal {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    margin-bottom: 0.4rem !important;
+  }
+  
+  .article-horizontal-meta {
+    font-size: 0.7rem;
+    flex-wrap: wrap;
+    gap: 0.5rem !important;
+  }
+  
+  .article-horizontal-footer {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.3rem;
+  }
 }
 
 @media (max-width: 576px) {
@@ -1512,6 +1832,48 @@ img {
   
   .meta-item .bi {
     font-size: 0.8em;
+  }
+  
+  /* 横向图文模式响应式 */
+  .article-horizontal-cover {
+    width: 110px;
+    height: 90px;
+  }
+  
+  .article-horizontal-content {
+    padding: 0 !important;
+  }
+  
+  .article-title-horizontal {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-bottom: 0.4rem !important;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  
+  .article-desc-horizontal {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    margin-bottom: 0.4rem !important;
+  }
+  
+  .article-horizontal-meta {
+    font-size: 0.65rem;
+    flex-wrap: wrap;
+    gap: 0.5rem !important;
+  }
+  
+  .article-horizontal-tags {
+    display: none !important;
+  }
+  
+  .article-horizontal-footer {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.3rem;
   }
 }
 
@@ -1959,6 +2321,43 @@ img {
   margin-bottom: 0.5rem;
 }
 
+/* 横向图文模式骨架屏 */
+.skeleton-horizontal-cover {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 0;
+}
+
+.skeleton-title-horizontal {
+  height: 1.5rem;
+  width: 80%;
+}
+
+.skeleton-desc-horizontal {
+  height: 0.9rem;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-tag {
+  height: 0.7rem;
+  width: 3rem;
+  border-radius: 10px;
+}
+
+.skeleton-meta-left-horizontal {
+  height: 0.7rem;
+  width: 50%;
+}
+
+.skeleton-meta-right-horizontal {
+  height: 0.7rem;
+  width: 30%;
+}
+
 /* 轮播图骨架屏 */
 .carousel-loading {
   width: 100%;
@@ -2148,6 +2547,52 @@ img {
   /* 封面容器 */
   .article-cover {
     background: linear-gradient(135deg, var(--bs-body-bg), var(--bs-secondary-bg));
+  }
+  
+  /* 横向图文模式封面容器 */
+  .article-horizontal-cover {
+    background: linear-gradient(135deg, var(--bs-body-bg), var(--bs-secondary-bg));
+  }
+  
+  /* 横向图文模式标题 */
+  .article-title-horizontal {
+    color: var(--bs-heading-color);
+  }
+  
+  .article-item-horizontal:hover .article-title-horizontal {
+    color: var(--bs-primary);
+  }
+  
+  /* 横向图文模式摘要 */
+  .article-desc-horizontal {
+    color: var(--bs-secondary-color);
+  }
+  
+  /* 横向图文模式元信息 */
+  .article-horizontal-meta {
+    color: var(--bs-tertiary-color);
+  }
+  
+  .meta-item-horizontal:hover {
+    color: var(--bs-primary);
+  }
+  
+  .meta-item-horizontal .bi {
+    color: var(--bs-tertiary-color);
+  }
+  
+  .meta-item-horizontal:hover .bi {
+    color: var(--bs-primary);
+  }
+  
+  /* 横向图文模式加载失败的图片样式 */
+  .article-horizontal-cover-img.lazy-error {
+    background: linear-gradient(135deg, var(--bs-body-bg), var(--bs-secondary-bg));
+  }
+  
+  /* 横向图文模式卡片悬停效果 */
+  .article-item-horizontal:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 }
 
